@@ -2,6 +2,8 @@ import express, { Request, Response } from "express";
 import cors from 'cors'
 import { env } from "./config/env";
 import { checkDatabaseConnection } from "./db";
+import authRoutes from './routes/auth'
+import cookieParser from "cookie-parser";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -9,6 +11,7 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json())
+app.use(cookieParser());
 
 // Route
 app.get('/api/health', (req: Request, res: Response) => {
@@ -18,6 +21,8 @@ app.get('/api/health', (req: Request, res: Response) => {
         timestamp: new Date().toISOString()
     });
 });
+
+app.use('/api/auth', authRoutes);
 
 const startServer = async () => {
     await checkDatabaseConnection();
