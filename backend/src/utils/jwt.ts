@@ -1,0 +1,62 @@
+import jwt from 'jsonwebtoken'
+import { env } from '../config/env'
+
+interface TokenPayload {
+    userId: number;
+}
+
+const ACCESS_TOKEN_SECRET = env.ACCESS_TOKEN_SECRET!;
+const REFRESH_TOKEN_SECRET = env.REFRESH_TOKEN_SECRET!;
+
+// Generate token
+export const generateAccessToken = (userId : number) : string => {
+    return jwt.sign(
+        {userId},
+        ACCESS_TOKEN_SECRET,
+        {expiresIn: env.ACCESS_TOKEN_EXPIRY}
+    );
+}
+export const generateRefreshToken = (userId : number) : string => {
+    return jwt.sign(
+        {userId},
+        REFRESH_TOKEN_SECRET,
+        {expiresIn: env.REFRESH_TOKEN_EXPIRY}
+    );
+}
+
+// Verify token
+export const verifyAccessToken = (
+    token: string
+    ): TokenPayload => {
+    const decoded = jwt.verify(
+        token,
+        ACCESS_TOKEN_SECRET!
+    );
+
+    if (
+        typeof decoded === 'string' ||
+        !('userId' in decoded)
+    ) {
+        throw new Error('Invalid token payload');
+    }
+
+    return decoded as TokenPayload;
+};
+
+export const verifyRefreshToken = (
+    token: string
+): TokenPayload => {
+    const decoded = jwt.verify(
+        token,
+        REFRESH_TOKEN_SECRET!
+    );
+
+    if(
+        typeof decoded === 'string' ||
+        !('userId' in decoded)
+    ) {
+        throw new Error('Invalid token payload');
+    }
+    
+    return decoded as TokenPayload;
+}
