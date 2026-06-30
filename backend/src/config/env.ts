@@ -5,7 +5,13 @@ import jwt from 'jsonwebtoken';
 // Load .env file
 dotenv.config(({ path: path.resolve(__dirname, '../../.env')}));
 
-const requiredEnvVars = ['DATABASE_URL', 'ACCESS_TOKEN_SECRET', 'REFRESH_TOKEN_SECRET'];
+const requiredEnvVars = [
+    'DATABASE_URL',
+    'ACCESS_TOKEN_SECRET',
+    'REFRESH_TOKEN_SECRET',
+    'ACCESS_TOKEN_EXPIRY',
+    'REFRESH_TOKEN_EXPIRY',
+];
 
 requiredEnvVars.forEach((envVar) => {
     if(!process.env[envVar]) {
@@ -15,10 +21,10 @@ requiredEnvVars.forEach((envVar) => {
 
 export const env = {
     DATABASE_URL: process.env.DATABASE_URL!,
-    PORT: process.env.PORT,
+    PORT: process.env.PORT || 3000,
     NODE_ENV: process.env.NODE_ENV || 'development',
-    ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET,
-    ACCESS_TOKEN_EXPIRY: (process.env.ACCESS_TOKEN_EXPIRY)as jwt.SignOptions["expiresIn"],
-    REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET,
-    REFRESH_TOKEN_EXPIRY: (process.env.REFRESH_TOKEN_EXPIRY) as jwt.SignOptions["expiresIn"],
-}
+    ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET!,
+    ACCESS_TOKEN_EXPIRY: (process.env.ACCESS_TOKEN_EXPIRY || '1d')as jwt.SignOptions["expiresIn"],
+    REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET!,
+    REFRESH_TOKEN_EXPIRY: (process.env.REFRESH_TOKEN_EXPIRY || '7d') as jwt.SignOptions["expiresIn"],
+} as const;

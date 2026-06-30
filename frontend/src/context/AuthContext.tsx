@@ -13,6 +13,7 @@ interface AuthContextType {
     register: (name: string, email: string, password: string) => Promise<void>
     login: (email: string, password: string) => Promise<void>
     logout: () => Promise<void>
+    refreshUser: () => Promise<void>
 }
 
 
@@ -29,15 +30,9 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
     const checkAuth = async () => {
         try {
             const res = await authService.getMe();
-            setUser(res.data)
+            setUser(res.data.user)
         } catch (error) {
-            try {
-                await authService.refresh();
-                const res = await authService.getMe();
-                setUser(res.data);
-            } catch (error) {
-                setUser(null);
-            }
+            setUser(null);
         } finally {
             setLoading(false);
         }
@@ -45,21 +40,30 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
 
     const register = async (name: string, email: string, password: string) => {
         const res = await authService.register({name, email, password});
+        localStorage.setItem('accessToken', res.data.accessToken);
         setUser(res.data.user)
     }
 
     const login = async (email: string, password: string) => {
         const res = await authService.login({email, password});
+        localStorage.setItem('accessToken', res.data.accessToken);
         setUser(res.data.user)
     }
 
     const logout = async () => {
         await authService.logout();
+        localStorage.removeItem('accessToken');
         setUser(null);
     }
 
+    const refreshUser = async () => {
+        setLoading(true);
+        await checkAuth();
+        setLoading(false);
+    };
+
     return (
-        <AuthContext.Provider value={{user, loading, register, login, logout}}>
+        <AuthContext.Provider value={{user, loading, register, login, logout, refreshUser}}>
             {children}
         </AuthContext.Provider>
     )

@@ -5,6 +5,14 @@ const API = axios.create({
     withCredentials: true,
 })
 
+API.interceptors.request.use((config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
 export const authService = {
     register: (data: {name: string, email: string, password: string}) =>
         API.post('/register', data),
@@ -14,7 +22,9 @@ export const authService = {
 
     refresh: () => API.post('/refresh'),
 
-    logout: () => API.post('logout'),
+    logout: () => API.post('/logout'),
 
     getMe: () => API.get('/me'),
+
+    checkAuth: () => API.get('/check'),
 }

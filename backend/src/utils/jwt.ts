@@ -25,38 +25,42 @@ export const generateRefreshToken = (userId : number) : string => {
 }
 
 // Verify token
-export const verifyAccessToken = (
-    token: string
-    ): TokenPayload => {
-    const decoded = jwt.verify(
-        token,
-        ACCESS_TOKEN_SECRET!
-    );
-
-    if (
-        typeof decoded === 'string' ||
-        !('userId' in decoded)
-    ) {
-        throw new Error('Invalid token payload');
+export const verifyAccessToken = (token: string): TokenPayload => {
+    try {
+        const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
+        
+        if (typeof decoded === 'string' || !('userId' in decoded)) {
+            throw new Error('Invalid token payload');
+        }
+        
+        return decoded as TokenPayload;
+    } catch (error) {
+        if (error instanceof jwt.TokenExpiredError) {
+            throw new Error('Access token expired');
+        }
+        if (error instanceof jwt.JsonWebTokenError) {
+            throw new Error('Invalid access token');
+        }
+        throw error;
     }
-
-    return decoded as TokenPayload;
 };
 
-export const verifyRefreshToken = (
-    token: string
-): TokenPayload => {
-    const decoded = jwt.verify(
-        token,
-        REFRESH_TOKEN_SECRET!
-    );
-
-    if(
-        typeof decoded === 'string' ||
-        !('userId' in decoded)
-    ) {
-        throw new Error('Invalid token payload');
+export const verifyRefreshToken = (token: string): TokenPayload => {
+    try {
+        const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET);
+        
+        if (typeof decoded === 'string' || !('userId' in decoded)) {
+            throw new Error('Invalid token payload');
+        }
+        
+        return decoded as TokenPayload;
+    } catch (error) {
+        if (error instanceof jwt.TokenExpiredError) {
+            throw new Error('Refresh token expired');
+        }
+        if (error instanceof jwt.JsonWebTokenError) {
+            throw new Error('Invalid refresh token');
+        }
+        throw error;
     }
-    
-    return decoded as TokenPayload;
-}
+};
