@@ -14,8 +14,8 @@ const runMigration = async () => {
         migrationsFolder: "./src/db/migrations",
     })
 
-    console.log("Migration end");
-    client.end()
+    console.log("Migrations completed successfully!");
+    await client.end()
 }
 
 runMigration().catch((error) => {
