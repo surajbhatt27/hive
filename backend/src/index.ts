@@ -5,6 +5,7 @@ import { checkDatabaseConnection } from "./db";
 import authRoutes from './routes/auth'
 import cookieParser from "cookie-parser";
 import spaceRoutes from './routes/spaces'
+import habitRoutes from './routes/habits'
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -28,6 +29,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/space', spaceRoutes)
+app.use('/api/spaces/:spaceId/habits', habitRoutes)
 
 const startServer = async () => {
     await checkDatabaseConnection();
