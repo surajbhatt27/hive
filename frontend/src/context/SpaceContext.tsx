@@ -68,18 +68,19 @@ export const SpaceProvider = ({children}: {children: ReactNode}) => {
     const updateSpace = async (id: number, data: Partial<CreateSpaceData>): Promise<Space> => {
         try {
             setError(null);
-            const response = await spaceService.updateSpace(id, data)
-            const updateSpace = response.data.data;
+            const response = await spaceService.updateSpace(id, data);
+            const updated = response.data.data;
+
             setSpaces(prev =>
-                prev.map(space => 
-                    space.id === id ? updateSpace : space
+                prev.map(space =>
+                    space.id === id ? { ...space, ...updated } : space
                 )
             );
 
-            if(currentSpace?.id !== id) {
-                setCurrentSpace(updateSpace);
+            if (currentSpace?.id === id) {
+                setCurrentSpace({ ...currentSpace, ...updated });
             }
-            return updateSpace;
+            return updated;
         } catch (error: any) {
             const message = error.response?.data?.message || "Failed to update space";
             setError(message);
@@ -96,7 +97,7 @@ export const SpaceProvider = ({children}: {children: ReactNode}) => {
                 setCurrentSpace(null);
             }
         } catch (error: any) {
-            const message = error.response?.data?.message || "Failed to update space";
+            const message = error.response?.data?.message || "Failed to delete space";
             setError(message);
             throw new Error(message);
         }
