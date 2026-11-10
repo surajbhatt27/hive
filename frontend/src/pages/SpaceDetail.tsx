@@ -90,23 +90,24 @@ function SpaceDetailContent() {
     const handleCreateHabit = async (data: { name: string; description?: string; type: 'space' | 'personal'; frequency: Frequency }) => {
         if (!space) return;
         await createHabit(space.id, data);
-        await loadHabits(space.id);
     };
 
     const handleUpdateHabit = async (data: { name: string; description?: string; frequency: 'daily' | 'weekly' | 'monthly' | 'custom' }) => {
-    if (!space || !editingHabit) return;
-    await updateHabit(space.id, editingHabit.id, data);
-    await loadHabits(space.id);
-    setEditingHabit(null);
-};
+        if (!space || !editingHabit) return;
+        await updateHabit(space.id, editingHabit.id, data);
+        setEditingHabit(null);
+    };
 
     const handleDeleteHabit = async (habitId: number) => {
         if (!space) return;
-        if (window.confirm("Delete this habit?")) {
+        if (!window.confirm("Delete this habit?")) return;
+        try {
             await deleteHabit(space.id, habitId);
-            await loadHabits(space.id);
+        } catch (err: any) {
+            setError(err.message || "Failed to delete habit");
         }
     };
+    
 
     const handleEditHabit = (habit: Habit) => {
         setEditingHabit(habit);

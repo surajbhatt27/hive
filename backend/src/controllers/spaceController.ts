@@ -45,6 +45,12 @@ export const createSpace = async (req: Request, res: Response) => {
             return newSpace;
         })
 
+        return res.status(201).json({
+            success: true,
+            data: result,
+            message: "Space created successfully"
+        });
+
     } catch (error) {
         console.error("Create space error", error);
         return res.status(500).json({
@@ -69,11 +75,12 @@ export const getSpaces = async (req: Request, res: Response) => {
             role: userSpaces.role,
         })
         .from(userSpaces)
-        .innerJoin(spaces, eq(userSpaces.id, spaces.id))
+        .innerJoin(spaces, eq(userSpaces.spaceId, spaces.id))
         .where(
             and(
                 eq(userSpaces.userId, userId),
-                eq(userSpaces.isActive, true)
+                eq(userSpaces.isActive, true),
+                eq(spaces.isActive, true)
             )
         );
 
@@ -176,14 +183,14 @@ export const updateSpace = async (req: Request, res: Response) => {
 
         if(!updateSpace) {
             return res.status(404).json({
-                success: true,
+                success: false,
                 message: "Space not found"
             })
         }
 
         return res.json({
             success: true,
-            data: updateData,
+            data: { ...updateSpace, role: membership[0].role },
             message: "Space updated successfully"
         })
 
@@ -234,7 +241,7 @@ export const deleteSpace = async (req: Request, res: Response) => {
         await db
             .update(userSpaces)
             .set({isActive: false})
-            .where(eq(userSpaces.userId, parseInt(id)));
+            .where(eq(userSpaces.spaceId, parseInt(id)));
 
         return res.json({
             success: true,

@@ -29,9 +29,11 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
 
     const checkAuth = async () => {
         try {
-            const res = await authService.getMe();
-            setUser(res.data.user)
+            const res = await authService.checkAuth();
+            localStorage.setItem('accessToken', res.data.accessToken);
+            setUser(res.data.user);
         } catch (error) {
+            localStorage.removeItem('accessToken');
             setUser(null);
         } finally {
             setLoading(false);
