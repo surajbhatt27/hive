@@ -1,17 +1,12 @@
 import axios from "axios";
+import { attachAuthInterceptors } from "./apiClient";
 
 const API = axios.create({
     baseURL: 'http://localhost:3000/api/space',
     withCredentials: true
 })
 
-API.interceptors.request.use((config) => {
-    const token = localStorage.getItem('accessToken');
-    if(token) {
-        config.headers.Authorization = `Bearer ${token}`
-    }
-    return config;
-})
+attachAuthInterceptors(API)
 
 export interface Space {
     id: number,

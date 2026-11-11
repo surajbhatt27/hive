@@ -1,17 +1,12 @@
 import axios from "axios";
+import { attachAuthInterceptors } from "./apiClient";
 
 const API = axios.create({
     baseURL: 'http://localhost:3000/api/auth',
     withCredentials: true,
 })
 
-API.interceptors.request.use((config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
+attachAuthInterceptors(API)
 
 export const authService = {
     register: (data: {name: string, email: string, password: string}) =>
