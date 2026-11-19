@@ -8,6 +8,8 @@ import { SpaceProvider } from "./context/SpaceContext"
 import Spaces from "./pages/Spaces"
 import CreateSpace from "./pages/CreateSpace"
 import SpaceDetail from "./pages/SpaceDetail"
+import SpaceMembers from "./pages/SpaceMembers"
+import JoinSpace from "./pages/JoinSpace"
 
 function App() {
 
@@ -36,6 +38,16 @@ function App() {
               <Route path="/spaces/:id" element={
                 <ProtectedRoute>
                   <SpaceDetail/>
+                </ProtectedRoute>}
+              />
+              <Route path="/spaces/:id/members" element={
+                <ProtectedRoute>
+                  <SpaceMembers/>
+                </ProtectedRoute>}
+              />
+              <Route path="/join/:slug" element={
+                <ProtectedRoute>
+                  <JoinSpace/>
                 </ProtectedRoute>}
               />
 

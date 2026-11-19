@@ -6,6 +6,7 @@ interface HabitCardProps {
     isAdmin: boolean;
     onEdit: (habit: Habit) => void;
     onDelete: (id: number) => void;
+    onToggle?: (habit: Habit) => void;
 }
 
 export const HabitCard = ({ 
@@ -13,7 +14,8 @@ export const HabitCard = ({
     currentUserId, 
     isAdmin, 
     onEdit, 
-    onDelete 
+    onDelete,
+    onToggle,
 }: HabitCardProps) => {
     const canEdit = 
         habit.type === 'space' 
@@ -34,13 +36,23 @@ export const HabitCard = ({
                 <div>
                     <span>Frequency: {habit.frequency}</span>
                     <span> | Created: {new Date(habit.createdAt).toLocaleDateString()}</span>
+                    {typeof habit.streak === 'number' && habit.streak > 0 && (
+                        <span> | Streak: {habit.streak} day{habit.streak === 1 ? '' : 's'}</span>
+                    )}
                 </div>
             </div>
             <div>
+                {onToggle && (
+                    <button onClick={() => onToggle(habit)}>
+                        {habit.completedToday ? '✓ Done today (undo)' : 'Mark done today'}
+                    </button>
+                )}
                 {canEdit && (
                     <>
                         <button onClick={() => onEdit(habit)}>Edit</button>
-                        <button onClick={() => onDelete(habit.id)}>Delete</button>
+                        {canDelete && (
+                            <button onClick={() => onDelete(habit.id)}>Delete</button>
+                        )}
                     </>
                 )}
             </div>

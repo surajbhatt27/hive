@@ -21,7 +21,9 @@ export default function Spaces() {
                 <div>{error}</div>
             )}
 
-            {spaces.length === 0 ? (
+            {loading ? (
+                <div>Loading spaces...</div>
+            ) : spaces.length === 0 ? (
                 <div>
                     <h3>No spaces yet</h3>
                     <p>Create your first space to start tracking habits</p>

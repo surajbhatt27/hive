@@ -19,9 +19,17 @@ requiredEnvVars.forEach((envVar) => {
     }
 });
 
+// An empty or zero PORT makes Express bind a random port, which the frontend
+// (fixed at localhost:3000) can never reach. Fall back to 3000 in that case.
+const parsedPort = Number.parseInt(process.env.PORT ?? "", 10);
+
+const envPort = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort <= 65535
+    ? parsedPort
+    : 3000;
+
 export const env = {
     DATABASE_URL: process.env.DATABASE_URL!,
-    PORT: process.env.PORT || 3000,
+    PORT: envPort,
     NODE_ENV: process.env.NODE_ENV || 'development',
     ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET!,
     ACCESS_TOKEN_EXPIRY: (process.env.ACCESS_TOKEN_EXPIRY || '1d')as jwt.SignOptions["expiresIn"],

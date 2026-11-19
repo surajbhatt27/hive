@@ -21,6 +21,15 @@ export interface Habit {
     isActive: boolean;
     createdAt: string;
     updatedAt: string;
+    completedToday?: boolean;
+    streak?: number;
+    lastCompletedAt?: string | null;
+}
+
+export interface CompletionResult {
+    completedToday: boolean;
+    streak: number;
+    lastCompletedAt: string | null;
 }
 
 export interface CreateHabitData {
@@ -60,5 +69,16 @@ export const habitService = {
     delete: (spaceId: number, habitId: number) => 
         API.delete<{success: boolean; message: string}>(
             `/spaces/${spaceId}/habits/${habitId}`
+        ),
+
+    complete: (spaceId: number, habitId: number, note?: string) =>
+        API.post<{success: boolean; data: CompletionResult; message: string}>(
+            `/spaces/${spaceId}/habits/${habitId}/logs`,
+            note ? { note } : {}
+        ),
+
+    undoCompletion: (spaceId: number, habitId: number) =>
+        API.delete<{success: boolean; data: CompletionResult; message: string}>(
+            `/spaces/${spaceId}/habits/${habitId}/logs/today`
         ),
 };

@@ -29,6 +29,37 @@ export interface UpdateSpaceData  {
     description?: string,
 }
 
+export interface SpacePreview {
+    id: number;
+    name: string;
+    description: string | null;
+    slug: string;
+    memberCount: number;
+    isMember: boolean;
+}
+
+export interface SpaceSummary extends Space {
+    memberCount: number;
+    habitCount: number;
+    completedToday: number;
+    habits: {
+        id: number;
+        name: string;
+        type: 'space' | 'personal';
+        completed: boolean;
+    }[];
+}
+
+export interface DashboardSummary {
+    spaces: SpaceSummary[];
+    totals: {
+        spaces: number;
+        habits: number;
+        completedToday: number;
+        members: number;
+    };
+}
+
 export const spaceService = {
     creatSpace: (data: CreateSpaceData) => 
         API.post<{success: boolean; data: Space; message: string}>('/', data),
@@ -42,4 +73,12 @@ export const spaceService = {
         API.put<{success: boolean; data: Space; message: string}>(`/${id}`, data),
 
     deleteSpace: (id: number) => API.delete<{success: boolean; message: string}>(`/${id}`),
+
+    getSummary: () => API.get<{success: boolean; data: DashboardSummary}>('/summary'),
+
+    previewBySlug: (slug: string) =>
+        API.get<{success: boolean; data: SpacePreview}>(`/preview/${encodeURIComponent(slug)}`),
+
+    joinSpace: (slug: string) =>
+        API.post<{success: boolean; data: Space; message: string}>('/join', { slug }),
 }

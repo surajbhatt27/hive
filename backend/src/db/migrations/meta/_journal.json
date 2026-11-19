@@ -8,6 +8,13 @@
       "when": 1782914719420,
       "tag": "0000_outgoing_mach_iv",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795070063043,
+      "tag": "0001_exotic_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }

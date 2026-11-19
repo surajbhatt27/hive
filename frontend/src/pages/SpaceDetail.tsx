@@ -14,7 +14,7 @@ function SpaceDetailContent() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { getSpace, deleteSpace, updateSpace } = useSpaces();
-    const { habits, loading: habitsLoading, fetchHabits, createHabit, updateHabit, deleteHabit } = useHabits();
+    const { habits, loading: habitsLoading, fetchHabits, createHabit, updateHabit, deleteHabit, toggleHabit } = useHabits();
     
     const [space, setSpace] = useState<Space | null>(null);
     const [loading, setLoading] = useState(true);
@@ -114,6 +114,15 @@ function SpaceDetailContent() {
         setShowEditModal(true);
     };
 
+    const handleToggleHabit = async (habit: Habit) => {
+        if (!space) return;
+        try {
+            await toggleHabit(space.id, habit);
+        } catch (err: any) {
+            setError(err.message || "Failed to update habit");
+        }
+    };
+
     const getFilteredHabits = () => {
         if (filterType === 'all') return habits;
         return habits.filter(h => h.type === filterType);
@@ -165,6 +174,7 @@ function SpaceDetailContent() {
                                 <button onClick={handleDelete}>Delete Space</button>
                             </>
                         )}
+                        <button onClick={() => navigate(`/spaces/${space.id}/members`)}>Members</button>
                         <button onClick={() => navigate('/spaces')}>Back to Spaces</button>
                     </div>
                 )}
@@ -243,6 +253,7 @@ function SpaceDetailContent() {
                                 isAdmin={isAdmin}
                                 onEdit={handleEditHabit}
                                 onDelete={handleDeleteHabit}
+                                onToggle={handleToggleHabit}
                             />
                         ))}
                     </div>
