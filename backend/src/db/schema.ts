@@ -1,6 +1,6 @@
 import { index } from "drizzle-orm/pg-core";
 import { unique } from "drizzle-orm/pg-core";
-import { varchar ,pgTable, boolean, timestamp, serial, integer} from "drizzle-orm/pg-core";
+import { varchar ,pgTable, boolean, date, timestamp, serial, integer} from "drizzle-orm/pg-core";
 
 export const users = pgTable('users',{
     id: serial('id').primaryKey(),
@@ -8,6 +8,7 @@ export const users = pgTable('users',{
     email: varchar('email', {length: 255}).notNull().unique(),
     password: varchar('password', {length: 255}).notNull(),
     isActive: boolean('is_active').default(true),
+    timezone: varchar('timezone', {length: 64}).notNull().default('UTC'),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow()
 })
@@ -61,13 +62,16 @@ export const habitLogs = pgTable('habit_logs', {
     habitId: integer('habit_id').references(() => habits.id).notNull(),
     userId: integer('user_id').references(() => users.id).notNull(),
     completedAt: timestamp('completed_at').defaultNow().notNull(),
+    // Calendar day in the user's timezone: one completion per habit per day.
+    logDate: date('log_date').notNull(),
     note: varchar('note', {length: 500}),
     isActive: boolean('is_active').default(true),
 }, (table) => ([
     index('habit_log_habit_id_idx').on(table.habitId),
     index('habit_log_user_id_idx').on(table.userId),
     index('habit_log_completed_at_idx').on(table.completedAt),
-    unique().on(table.habitId, table.userId, table.completedAt),
+    index('habit_log_date_idx').on(table.logDate),
+    unique('habit_log_habit_user_day_idx').on(table.habitId, table.userId, table.logDate),
 ]));
 
 export const schema = {

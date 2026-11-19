@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { habitLogs, habits, userSpaces, users } from "../db/schema";
-import { daysAgo, endOfUtcDay, startOfUtcDay, toUtcDateKey } from "../utils/dates";
+import { addDays, dayRange, normalizeTimeZone, toDateKey } from "../utils/dates";
 
 export interface HabitStat {
     completedToday: boolean;
@@ -40,9 +40,19 @@ const findHabit = async (spaceId: number, habitId: number) => {
     return habit ?? null;
 };
 
+// "Today" is the user's local calendar day, not UTC: someone in IST checking
+// in at 00:30 belongs to the day that just started for them.
+export const getUserTimeZone = async (userId: number): Promise<string> => {
+    const [row] = await db.select({ timezone: users.timezone })
+        .from(users)
+        .where(eq(users.id, userId));
+    return normalizeTimeZone(row?.timezone);
+};
+
 export const getHabitStats = async (
     userId: number,
-    habitIds: number[]
+    habitIds: number[],
+    timeZone?: string
 ): Promise<Map<number, HabitStat>> => {
     const stats = new Map<number, HabitStat>();
     for (const habitId of habitIds) {
@@ -50,8 +60,12 @@ export const getHabitStats = async (
     }
     if (habitIds.length === 0) return stats;
 
+    const zone = timeZone ?? await getUserTimeZone(userId);
+    const todayKey = toDateKey(new Date(), zone);
+
     const logs = await db.select({
         habitId: habitLogs.habitId,
+        logDate: habitLogs.logDate,
         completedAt: habitLogs.completedAt,
     })
         .from(habitLogs)
@@ -60,7 +74,7 @@ export const getHabitStats = async (
                 eq(habitLogs.userId, userId),
                 inArray(habitLogs.habitId, habitIds),
                 eq(habitLogs.isActive, true),
-                gte(habitLogs.completedAt, daysAgo(400))
+                gte(habitLogs.logDate, addDays(todayKey, -400))
             )
         );
 
@@ -71,7 +85,7 @@ export const getHabitStats = async (
         if (!daysByHabit.has(log.habitId)) {
             daysByHabit.set(log.habitId, new Set<string>());
         }
-        daysByHabit.get(log.habitId)!.add(toUtcDateKey(log.completedAt));
+        daysByHabit.get(log.habitId)!.add(log.logDate);
 
         const previous = lastByHabit.get(log.habitId);
         if (!previous || log.completedAt > previous) {
@@ -79,26 +93,21 @@ export const getHabitStats = async (
         }
     }
 
-    const today = startOfUtcDay();
-
     for (const habitId of habitIds) {
         const days = daysByHabit.get(habitId);
         if (!days) continue;
 
-        let streak = 0;
-        const cursor = new Date(today);
         // A streak stays alive until today ends, so count from yesterday when
         // today has not been completed yet.
-        if (!days.has(toUtcDateKey(cursor))) {
-            cursor.setUTCDate(cursor.getUTCDate() - 1);
-        }
-        while (days.has(toUtcDateKey(cursor))) {
+        let cursor = days.has(todayKey) ? todayKey : addDays(todayKey, -1);
+        let streak = 0;
+        while (days.has(cursor)) {
             streak += 1;
-            cursor.setUTCDate(cursor.getUTCDate() - 1);
+            cursor = addDays(cursor, -1);
         }
 
         stats.set(habitId, {
-            completedToday: days.has(toUtcDateKey(today)),
+            completedToday: days.has(todayKey),
             streak,
             lastCompletedAt: lastByHabit.get(habitId) ?? null,
         });
@@ -147,40 +156,29 @@ export const checkIn = async (req: Request, res: Response) => {
             ? req.body.note.trim().slice(0, 500)
             : null;
 
-        const [existing] = await db.select().from(habitLogs).where(
-            and(
-                eq(habitLogs.habitId, habitId),
-                eq(habitLogs.userId, userId),
-                gte(habitLogs.completedAt, startOfUtcDay()),
-                lt(habitLogs.completedAt, endOfUtcDay())
-            )
-        );
+        const timeZone = await getUserTimeZone(userId);
+        const { key } = dayRange(new Date(), timeZone);
 
-        if (existing?.isActive) {
-            return res.status(409).json({
-                success: false,
-                message: "Habit already completed today"
-            });
-        }
-
-        if (existing) {
-            await db.update(habitLogs)
-                .set({
-                    isActive: true,
-                    completedAt: new Date(),
-                    note: note ?? existing.note,
-                })
-                .where(eq(habitLogs.id, existing.id));
-        } else {
-            await db.insert(habitLogs).values({
-                habitId,
-                userId,
-                note,
+        // The unique index on (habit, user, log_date) makes this the one place
+        // that decides a completion for the day, so a double click is a no-op
+        // rather than a duplicate row.
+        await db.insert(habitLogs).values({
+            habitId,
+            userId,
+            logDate: key,
+            completedAt: new Date(),
+            note,
+            isActive: true,
+        }).onConflictDoUpdate({
+            target: [habitLogs.habitId, habitLogs.userId, habitLogs.logDate],
+            set: {
                 isActive: true,
-            });
-        }
+                completedAt: new Date(),
+                ...(note ? { note } : {}),
+            },
+        });
 
-        const stats = await getHabitStats(userId, [habitId]);
+        const stats = await getHabitStats(userId, [habitId], timeZone);
 
         return res.status(201).json({
             success: true,
@@ -236,13 +234,15 @@ export const undoCheckIn = async (req: Request, res: Response) => {
             });
         }
 
+        const timeZone = await getUserTimeZone(userId);
+        const { key } = dayRange(new Date(), timeZone);
+
         const [existing] = await db.select().from(habitLogs).where(
             and(
                 eq(habitLogs.habitId, habitId),
                 eq(habitLogs.userId, userId),
-                eq(habitLogs.isActive, true),
-                gte(habitLogs.completedAt, startOfUtcDay()),
-                lt(habitLogs.completedAt, endOfUtcDay())
+                eq(habitLogs.logDate, key),
+                eq(habitLogs.isActive, true)
             )
         );
 
@@ -257,7 +257,7 @@ export const undoCheckIn = async (req: Request, res: Response) => {
             .set({ isActive: false })
             .where(eq(habitLogs.id, existing.id));
 
-        const stats = await getHabitStats(userId, [habitId]);
+        const stats = await getHabitStats(userId, [habitId], timeZone);
 
         return res.json({
             success: true,
@@ -313,13 +313,16 @@ export const getHabitLogs = async (req: Request, res: Response) => {
             });
         }
 
+        const timeZone = await getUserTimeZone(userId);
+        const todayKey = toDateKey(new Date(), timeZone);
+
         // Space habits are shared, so members can see who completed them.
         const showAllMembers = habit.type === 'space';
 
         const conditions = [
             eq(habitLogs.habitId, habitId),
             eq(habitLogs.isActive, true),
-            gte(habitLogs.completedAt, daysAgo(90)),
+            gte(habitLogs.logDate, addDays(todayKey, -90)),
         ];
 
         if (!showAllMembers) {
@@ -330,15 +333,16 @@ export const getHabitLogs = async (req: Request, res: Response) => {
             id: habitLogs.id,
             userId: habitLogs.userId,
             userName: users.name,
+            logDate: habitLogs.logDate,
             completedAt: habitLogs.completedAt,
             note: habitLogs.note,
         })
             .from(habitLogs)
             .innerJoin(users, eq(habitLogs.userId, users.id))
             .where(and(...conditions))
-            .orderBy(desc(habitLogs.completedAt));
+            .orderBy(desc(habitLogs.logDate), desc(habitLogs.completedAt));
 
-        const stats = await getHabitStats(userId, [habitId]);
+        const stats = await getHabitStats(userId, [habitId], timeZone);
         const stat = stats.get(habitId);
 
         return res.json({

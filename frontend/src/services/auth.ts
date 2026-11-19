@@ -9,7 +9,7 @@ const API = axios.create({
 attachAuthInterceptors(API)
 
 export const authService = {
-    register: (data: {name: string, email: string, password: string}) =>
+    register: (data: {name: string, email: string, password: string, timezone?: string}) =>
         API.post('/register', data),
 
     login: (data: {email: string, password: string}) =>
@@ -20,6 +20,8 @@ export const authService = {
     logout: () => API.post('/logout'),
 
     getMe: () => API.get('/me'),
+
+    updateTimeZone: (timezone: string) => API.patch('/timezone', { timezone }),
 
     checkAuth: () => API.get('/check'),
 }
