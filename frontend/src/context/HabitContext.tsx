@@ -9,6 +9,7 @@ interface HabitContextType {
     createHabit: (spaceId: number, data: CreateHabitData) => Promise<Habit>;
     updateHabit: (spaceId: number, habitId: number, data: UpdateHabitData) => Promise<Habit>;
     deleteHabit: (spaceId: number, habitId: number) => Promise<void>;
+    toggleHabit: (spaceId: number, habit: Habit) => Promise<void>;
     clearError: () => void;
 }
 
@@ -85,6 +86,24 @@ export const HabitProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const toggleHabit = async (spaceId: number, habit: Habit): Promise<void> => {
+        try {
+            setError(null);
+            const response = habit.completedToday
+                ? await habitService.undoCompletion(spaceId, habit.id)
+                : await habitService.complete(spaceId, habit.id);
+
+            const { completedToday, streak, lastCompletedAt } = response.data.data;
+            setHabits(prev => prev.map(item =>
+                item.id === habit.id ? { ...item, completedToday, streak, lastCompletedAt } : item
+            ));
+        } catch (error: any) {
+            const message = error.response?.data?.message || "Failed to update habit";
+            setError(message);
+            throw new Error(message);
+        }
+    };
+
     const clearError = () => setError(null);
 
     return (
@@ -96,6 +115,7 @@ export const HabitProvider = ({ children }: { children: ReactNode }) => {
             createHabit,
             updateHabit,
             deleteHabit,
+            toggleHabit,
             clearError,
         }}>
             {children}

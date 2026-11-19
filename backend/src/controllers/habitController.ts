@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { db } from "../db";
 import { habits, userSpaces } from "../db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { getHabitStats } from "./logController";
 
 export const getHabits = async (req: Request, res: Response) => {
     try {
@@ -82,9 +83,16 @@ export const getHabits = async (req: Request, res: Response) => {
             );
             habitList = [...spaceHabits, ...personalHabits];
         }
+        const stats = await getHabitStats(userId, habitList.map(habit => habit.id));
+
         return res.json({
             success: true,
-            data: habitList
+            data: habitList.map(habit => ({
+                ...habit,
+                completedToday: stats.get(habit.id)?.completedToday ?? false,
+                streak: stats.get(habit.id)?.streak ?? 0,
+                lastCompletedAt: stats.get(habit.id)?.lastCompletedAt ?? null,
+            }))
         })
     } catch (error) {
         console.error('Get habits error:', error);
@@ -139,9 +147,16 @@ export const getHabitById = async (req: Request, res: Response) => {
             });
         }
 
+        const stats = await getHabitStats(userId, [habit[0].id]);
+
         return res.json({
             success: true,
-            data: habit[0]
+            data: {
+                ...habit[0],
+                completedToday: stats.get(habit[0].id)?.completedToday ?? false,
+                streak: stats.get(habit[0].id)?.streak ?? 0,
+                lastCompletedAt: stats.get(habit[0].id)?.lastCompletedAt ?? null,
+            }
         });
     } catch (error) {
         console.error('Get habit by ID error:', error);
@@ -215,7 +230,12 @@ export const createHabit = async (req: Request, res: Response) => {
 
         return res.status(201).json({
             success: true,
-            data: newHabit,
+            data: {
+                ...newHabit,
+                completedToday: false,
+                streak: 0,
+                lastCompletedAt: null,
+            },
             message: "Habit created successfully"
         });
 
