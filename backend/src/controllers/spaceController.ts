@@ -1,8 +1,9 @@
 import e, { Request, Response } from "express";
 import { db } from "../db";
 import { habitLogs, habits, spaces, userSpaces } from "../db/schema";
-import { and, count, eq, gte, inArray, lt, or } from "drizzle-orm";
-import { endOfUtcDay, startOfUtcDay } from "../utils/dates";
+import { and, count, eq, inArray, or } from "drizzle-orm";
+import { dayRange } from "../utils/dates";
+import { getUserTimeZone } from "./logController";
 
 export const createSpace = async (req: Request, res: Response) => {
     try {
@@ -437,6 +438,9 @@ export const getSpaceSummary = async (req: Request, res: Response) => {
 
         const habitIds = habitRows.map(habit => habit.id);
 
+        const timeZone = await getUserTimeZone(userId);
+        const { key: todayKey } = dayRange(new Date(), timeZone);
+
         const completedRows = habitIds.length > 0
             ? await db.select({ habitId: habitLogs.habitId })
                 .from(habitLogs)
@@ -445,8 +449,7 @@ export const getSpaceSummary = async (req: Request, res: Response) => {
                         eq(habitLogs.userId, userId),
                         inArray(habitLogs.habitId, habitIds),
                         eq(habitLogs.isActive, true),
-                        gte(habitLogs.completedAt, startOfUtcDay()),
-                        lt(habitLogs.completedAt, endOfUtcDay())
+                        eq(habitLogs.logDate, todayKey)
                     )
                 )
             : [];

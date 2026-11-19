@@ -5,7 +5,10 @@ interface User {
     id: number;
     name: string;
     email: string;
+    timezone?: string;
 }
+
+const detectedTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 interface AuthContextType {
     user: User | null;
@@ -27,11 +30,24 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
         checkAuth();
     }, [])
 
+    // Habit days follow the user's own timezone, so keep it in sync with this
+    // browser. Fire-and-forget: a failed sync must not block sign-in.
+    const syncTimeZone = async (nextUser: User): Promise<User> => {
+        const timezone = detectedTimeZone();
+        if (!timezone || nextUser.timezone === timezone) return nextUser;
+        try {
+            await authService.updateTimeZone(timezone);
+            return { ...nextUser, timezone };
+        } catch {
+            return nextUser;
+        }
+    };
+
     const checkAuth = async () => {
         try {
             const res = await authService.checkAuth();
             localStorage.setItem('accessToken', res.data.accessToken);
-            setUser(res.data.user);
+            setUser(await syncTimeZone(res.data.user));
         } catch (error) {
             localStorage.removeItem('accessToken');
             setUser(null);
@@ -41,7 +57,7 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
     };
 
     const register = async (name: string, email: string, password: string) => {
-        const res = await authService.register({name, email, password});
+        const res = await authService.register({name, email, password, timezone: detectedTimeZone()});
         localStorage.setItem('accessToken', res.data.accessToken);
         setUser(res.data.user)
     }
@@ -49,7 +65,7 @@ export const AuthProvider = ({children}: {children: ReactNode}) => {
     const login = async (email: string, password: string) => {
         const res = await authService.login({email, password});
         localStorage.setItem('accessToken', res.data.accessToken);
-        setUser(res.data.user)
+        setUser(await syncTimeZone(res.data.user))
     }
 
     const logout = async () => {

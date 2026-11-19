@@ -15,6 +15,13 @@
       "when": 1795070063043,
       "tag": "0001_exotic_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795082108266,
+      "tag": "0002_organic_pet_avengers",
+      "breakpoints": true
     }
   ]
 }

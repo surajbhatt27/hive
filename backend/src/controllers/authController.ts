@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../utils/jwt";
 import { env } from "../config/env";
+import { isValidTimeZone, normalizeTimeZone } from "../utils/dates";
 
 const cookieOptions = {
     httpOnly: true,
@@ -23,7 +24,7 @@ const clearCookieOptions = {
 
 export const register = async (req: Request, res: Response) => {
     try {
-    const {name, email, password} = req.body;
+    const {name, email, password, timezone} = req.body;
 
     if(!name || !email || !password) {
         return res.status(400).json({message: "All fields are required"});
@@ -39,7 +40,8 @@ export const register = async (req: Request, res: Response) => {
     const newUser = await db.insert(users).values({
         name,
         email,
-        password: hashedPass
+        password: hashedPass,
+        timezone: normalizeTimeZone(timezone)
     }).returning();
 
     const accessToken = generateAccessToken(newUser[0].id);
@@ -134,6 +136,32 @@ export const getMe = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('GetMe error:', error); 
         return res.status(500).json({message: "Failed to get user"});
+    }
+}
+
+// Habit days are tracked in the user's local timezone, so the browser reports
+// its zone and we keep it here. Older accounts default to UTC until they sync.
+export const updateTimeZone = async (req: Request, res: Response) => {
+    try {
+        const { timezone } = req.body ?? {};
+
+        if (!isValidTimeZone(timezone)) {
+            return res.status(400).json({ message: "Invalid timezone" });
+        }
+
+        const [updated] = await db.update(users)
+            .set({ timezone: timezone.trim(), updatedAt: new Date() })
+            .where(eq(users.id, req.userId!))
+            .returning();
+
+        if (!updated) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        return res.json({ timezone: updated.timezone });
+    } catch (error) {
+        console.error('Update timezone error:', error);
+        return res.status(500).json({ message: "Failed to update timezone" });
     }
 }
 
