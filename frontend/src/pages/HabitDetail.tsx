@@ -119,13 +119,13 @@ export default function HabitDetail() {
     };
 
     if (loading) {
-        return <div className="p-6">Loading habit...</div>;
+        return <p className="eyebrow animate-pulse">Loading habit…</p>;
     }
 
     if (!habit) {
         return (
-            <div className="p-6 space-y-3">
-                <h1 className="text-2xl font-semibold">Habit not found</h1>
+            <div className="space-y-3">
+                <h1>Habit not found</h1>
                 <p>{error || "This habit no longer exists."}</p>
                 <Link to={spaceId ? `/spaces/${spaceId}` : "/spaces"}>Back to space</Link>
             </div>
@@ -137,42 +137,61 @@ export default function HabitDetail() {
     const due = habit.dueToday !== false;
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="space-y-1">
-                <Link to={`/spaces/${spaceId}`} className="text-sm">← Back to space</Link>
-                <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-semibold">{habit.name}</h1>
-                    <span className="text-sm">
-                        [{habit.type === 'space' ? 'Space' : 'Personal'}]
-                    </span>
+        <div className="space-y-8">
+            <header className="space-y-3">
+                <Link to={`/spaces/${spaceId}`} className="inline-block text-sm">← Back to space</Link>
+                <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h1>{habit.name}</h1>
+                        <span className="tag">{habit.type === 'space' ? 'Space' : 'Personal'}</span>
+                        {!due && <span className="tag">not due today</span>}
+                    </div>
+                    {habit.description && <p className="max-w-prose">{habit.description}</p>}
                 </div>
-                {habit.description && <p>{habit.description}</p>}
-                <div className="flex flex-wrap gap-4 text-sm">
-                    <span>Schedule: {describeSchedule(habit.schedule, habit.frequency)}</span>
-                    <span>Streak: {streak} day{streak === 1 ? '' : 's'}</span>
-                    <span>Done in last {HISTORY_DAYS} days: {completedCount}</span>
-                    <span>
-                        Last completed: {history?.lastCompletedAt
-                            ? new Date(history.lastCompletedAt).toLocaleDateString()
-                            : 'never'}
-                    </span>
-                </div>
-            </div>
 
-            {error && <div className="text-red-500">{error}</div>}
+                <dl className="flex flex-wrap gap-x-8 gap-y-3 border-y border-line py-3 text-sm">
+                    <div>
+                        <dt className="eyebrow">Schedule</dt>
+                        <dd>{describeSchedule(habit.schedule, habit.frequency)}</dd>
+                    </div>
+                    <div>
+                        <dt className="eyebrow">Streak</dt>
+                        <dd className="tabular-nums">{streak} day{streak === 1 ? '' : 's'}</dd>
+                    </div>
+                    <div>
+                        <dt className="eyebrow">Last {HISTORY_DAYS} days</dt>
+                        <dd className="tabular-nums">{completedCount} done</dd>
+                    </div>
+                    <div>
+                        <dt className="eyebrow">Last completed</dt>
+                        <dd>
+                            {history?.lastCompletedAt
+                                ? new Date(history.lastCompletedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+                                : 'never'}
+                        </dd>
+                    </div>
+                </dl>
+            </header>
 
-            <div>
-                <button onClick={handleToggle} disabled={busy || !due}>
+            {error && <p className="alert">{error}</p>}
+
+            <div className="flex flex-wrap items-center gap-3">
+                <button
+                    className={habit.completedToday ? "" : "btn-primary"}
+                    onClick={handleToggle}
+                    disabled={busy || !due}
+                >
                     {!due
-                        ? 'Not due today'
-                        : habit.completedToday ? '✓ Done today (undo)' : 'Mark done today'}
+                        ? 'Not scheduled today'
+                        : habit.completedToday ? '✓ Done today — undo' : 'Mark done today'}
                 </button>
+                {!habit.completedToday && due && (
+                    <span className="text-sm text-faint">One tap and it's logged for today.</span>
+                )}
             </div>
 
-            <hr />
-
-            <div className="space-y-2">
-                <h2 className="text-lg">Last {HISTORY_DAYS} days</h2>
+            <section className="space-y-3">
+                <h2>Last {HISTORY_DAYS} days</h2>
                 <div
                     className="grid gap-1"
                     style={{
@@ -191,69 +210,80 @@ export default function HabitDetail() {
                             <div
                                 key={day.key}
                                 title={`${day.key}${log?.note ? ` — ${log.note}` : ''}${log ? '' : ' — not completed'}`}
-                                className={`h-4 w-4 rounded-sm ${log ? 'bg-emerald-500' : 'bg-neutral-700'}`}
+                                className={`h-4 w-4 rounded-[3px] ${log ? 'bg-moss' : 'bg-line'}`}
                             />
                         );
                     })}
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                    <span className="h-3 w-3 rounded-sm bg-neutral-700" /> Not done
-                    <span className="ml-3 h-3 w-3 rounded-sm bg-emerald-500" /> Done
+                <div className="flex items-center gap-4 text-xs text-faint">
+                    <span className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-[3px] bg-line" /> not done
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-[3px] bg-moss" /> done
+                    </span>
                 </div>
-            </div>
+            </section>
 
-            <hr />
-
-            <form onSubmit={handleSaveNote} className="space-y-2 max-w-lg">
-                <h2 className="text-lg">Today's note</h2>
-                <textarea
-                    value={note}
-                    onChange={event => {
-                        setNote(event.target.value);
-                        setNoteStatus("");
-                    }}
-                    rows={2}
-                    maxLength={500}
-                    placeholder={due ? "How did it go?" : "This habit is not scheduled today"}
-                    disabled={busy || !due}
-                    className="w-full rounded border border-neutral-600 bg-transparent p-2 text-sm"
-                />
-                <div className="flex items-center gap-3">
-                    <button type="submit" disabled={busy || !due}>Save note</button>
-                    {due && !habit.completedToday && (
-                        <span className="text-sm">Saving a note also marks today done.</span>
-                    )}
-                    {noteStatus && <span className="text-sm">{noteStatus}</span>}
+            <section className="card max-w-lg space-y-3 p-5">
+                <div>
+                    <h2 className="mb-0.5">Today's note</h2>
+                    <p className="text-sm">
+                        {due ? "A line about how it went." : "This habit isn't scheduled today."}
+                    </p>
                 </div>
-            </form>
+                <form onSubmit={handleSaveNote} className="space-y-3">
+                    <textarea
+                        value={note}
+                        onChange={event => {
+                            setNote(event.target.value);
+                            setNoteStatus("");
+                        }}
+                        rows={2}
+                        maxLength={500}
+                        placeholder={due ? "How did it go?" : "Nothing to write today"}
+                        disabled={busy || !due}
+                        aria-label="Today's note"
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button type="submit" disabled={busy || !due}>Save note</button>
+                        {due && !habit.completedToday && (
+                            <span className="text-sm text-faint">Saving a note also marks today done.</span>
+                        )}
+                        {noteStatus && <span className="text-sm text-moss">{noteStatus}</span>}
+                    </div>
+                </form>
+            </section>
 
-            <hr />
-
-            <div className="space-y-2">
-                <h2 className="text-lg">Recent check-ins</h2>
+            <section className="space-y-3">
+                <h2>Recent check-ins</h2>
                 {recentLogs.length === 0 ? (
-                    <p className="text-sm">No check-ins in the last {HISTORY_DAYS} days.</p>
+                    <p className="text-sm">Nothing logged in the last {HISTORY_DAYS} days.</p>
                 ) : (
-                    <ul className="space-y-2">
+                    <ul className="divide-y divide-line border-y border-line">
                         {recentLogs.map(log => (
-                            <li key={log.id} className="border-b border-neutral-800 pb-1">
+                            <li key={log.id} className="py-2.5">
                                 <div className="flex items-center justify-between gap-3">
-                                    <span>
-                                        {logDateKey(log.logDate)}
+                                    <span className="text-sm">
+                                        {new Date(`${logDateKey(log.logDate)}T00:00:00`).toLocaleDateString(undefined, {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            weekday: 'short',
+                                        })}
                                         {habit.type === 'space' && (
-                                            <span className="text-sm"> · {log.userName}</span>
+                                            <span className="text-faint"> · {log.userName}</span>
                                         )}
                                     </span>
-                                    <span className="text-sm">
-                                        {new Date(log.completedAt).toLocaleTimeString()}
+                                    <span className="text-xs text-faint tabular-nums">
+                                        {new Date(log.completedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </div>
-                                {log.note && <p className="text-sm">{log.note}</p>}
+                                {log.note && <p className="mt-0.5 text-sm text-muted">{log.note}</p>}
                             </li>
                         ))}
                     </ul>
                 )}
-            </div>
+            </section>
         </div>
     );
 }

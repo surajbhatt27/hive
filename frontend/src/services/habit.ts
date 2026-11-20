@@ -17,7 +17,7 @@ export type HabitSchedule =
     | { kind: 'custom'; intervalDays: number };
 
 export interface SchedulePayload {
-    frequency?: Frequency;
+    frequency: Frequency;
     weekdays?: number[];
     monthDays?: number[];
     intervalDays?: number;
@@ -107,10 +107,11 @@ export const habitService = {
             `/spaces/${spaceId}/habits/${habitId}/logs`
         ),
 
+    // An empty string is meaningful: it clears the note on today's check-in.
     complete: (spaceId: number, habitId: number, note?: string) =>
         API.post<{success: boolean; data: CompletionResult; message: string}>(
             `/spaces/${spaceId}/habits/${habitId}/logs`,
-            note ? { note } : {}
+            note === undefined ? {} : { note }
         ),
 
     undoCompletion: (spaceId: number, habitId: number) =>

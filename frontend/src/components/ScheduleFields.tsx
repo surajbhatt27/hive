@@ -18,10 +18,11 @@ export const ScheduleFields = ({ value, onChange, disabled }: ScheduleFieldsProp
     };
 
     return (
-        <>
+        <div className="space-y-4">
             <div>
-                <label>Frequency</label>
+                <label htmlFor="frequency">Frequency</label>
                 <select
+                    id="frequency"
                     value={value.frequency}
                     onChange={(e) => update({ frequency: e.target.value as Frequency })}
                     disabled={disabled}
@@ -36,46 +37,56 @@ export const ScheduleFields = ({ value, onChange, disabled }: ScheduleFieldsProp
             {value.frequency === 'weekly' && (
                 <div>
                     <label>Repeat on</label>
-                    <div className="flex flex-wrap gap-2">
-                        {WEEKDAY_LABELS.map((label, day) => (
-                            <button
-                                key={label}
-                                type="button"
-                                onClick={() => toggleWeekday(day)}
-                                disabled={disabled}
-                                className={
-                                    value.weekdays.includes(day)
-                                        ? 'rounded bg-emerald-600 px-2 py-1 text-sm'
-                                        : 'rounded border border-neutral-600 px-2 py-1 text-sm'
-                                }
-                            >
-                                {label}
-                            </button>
-                        ))}
+                    <div className="flex flex-wrap gap-1.5">
+                        {WEEKDAY_LABELS.map((label, day) => {
+                            const selected = value.weekdays.includes(day);
+                            return (
+                                <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => toggleWeekday(day)}
+                                    disabled={disabled}
+                                    aria-pressed={selected}
+                                    className={
+                                        selected
+                                            ? 'border-moss bg-moss-soft px-2.5 py-1 text-xs text-moss'
+                                            : 'px-2.5 py-1 text-xs text-muted'
+                                    }
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
                     </div>
+                    {value.weekdays.length === 0 && (
+                        <p className="hint">Pick the days this habit is due.</p>
+                    )}
                 </div>
             )}
 
             {value.frequency === 'monthly' && (
                 <div>
-                    <label>Days of the month</label>
+                    <label htmlFor="month-days">Days of the month</label>
                     <input
+                        id="month-days"
                         type="text"
                         value={value.monthDaysText}
                         onChange={(e) => update({ monthDaysText: e.target.value })}
-                        placeholder="1, 15"
+                        placeholder="1, 15, 31"
                         disabled={disabled}
                     />
-                    <p className="text-sm">
-                        Comma-separated (1–31). A habit on the 31st falls on the last day of shorter months.
+                    <p className="hint">
+                        Comma-separated, 1–31. A habit on the 31st falls on the last day of shorter
+                        months.
                     </p>
                 </div>
             )}
 
             {value.frequency === 'custom' && (
                 <div>
-                    <label>Every N days</label>
+                    <label htmlFor="interval-days">Every N days</label>
                     <input
+                        id="interval-days"
                         type="number"
                         min={1}
                         max={365}
@@ -83,8 +94,9 @@ export const ScheduleFields = ({ value, onChange, disabled }: ScheduleFieldsProp
                         onChange={(e) => update({ intervalDays: Number(e.target.value) })}
                         disabled={disabled}
                     />
+                    <p className="hint">Counted from the day the habit was created.</p>
                 </div>
             )}
-        </>
+        </div>
     );
 };
