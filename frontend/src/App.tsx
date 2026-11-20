@@ -10,6 +10,7 @@ import CreateSpace from "./pages/CreateSpace"
 import SpaceDetail from "./pages/SpaceDetail"
 import SpaceMembers from "./pages/SpaceMembers"
 import JoinSpace from "./pages/JoinSpace"
+import HabitDetail from "./pages/HabitDetail"
 
 function App() {
 
@@ -40,16 +41,18 @@ function App() {
                   <SpaceDetail/>
                 </ProtectedRoute>}
               />
+              <Route path="/spaces/:spaceId/habits/:habitId" element={
+                <ProtectedRoute>
+                  <HabitDetail/>
+                </ProtectedRoute>}
+              />
               <Route path="/spaces/:id/members" element={
                 <ProtectedRoute>
                   <SpaceMembers/>
                 </ProtectedRoute>}
               />
-              <Route path="/join/:slug" element={
-                <ProtectedRoute>
-                  <JoinSpace/>
-                </ProtectedRoute>}
-              />
+              {/* Public: an invited visitor must see the space before signing up. */}
+              <Route path="/join/:slug" element={<JoinSpace/>}/>
 
               {/* Redirects */}
               <Route 

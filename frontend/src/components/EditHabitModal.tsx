@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
-import { type Habit } from "../services/habit";
-
-type Frequency = 'daily' | 'weekly' | 'monthly' | 'custom';
+import { type Habit, type UpdateHabitData } from "../services/habit";
+import { draftFromHabit, emptyScheduleDraft, scheduleError, schedulePayload, type ScheduleDraft } from "../utils/schedule";
+import { ScheduleFields } from "./ScheduleFields";
 
 interface EditHabitModalProps {
     isOpen: boolean;
     habit: Habit | null;
     onClose: () => void;
-    onSubmit: (data: { name: string; description?: string; frequency: Frequency }) => Promise<void>;
+    onSubmit: (data: UpdateHabitData) => Promise<void>;
 }
 
 export const EditHabitModal = ({ 
@@ -18,7 +18,7 @@ export const EditHabitModal = ({
 }: EditHabitModalProps) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [frequency, setFrequency] = useState<Frequency>('daily');
+    const [schedule, setSchedule] = useState<ScheduleDraft>(emptyScheduleDraft);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -26,7 +26,7 @@ export const EditHabitModal = ({
         if (habit) {
             setName(habit.name);
             setDescription(habit.description || '');
-            setFrequency(habit.frequency as Frequency);
+            setSchedule(draftFromHabit(habit));
         }
     }, [habit]);
 
@@ -39,13 +39,19 @@ export const EditHabitModal = ({
             return;
         }
 
+        const scheduleMessage = scheduleError(schedule);
+        if (scheduleMessage) {
+            setError(scheduleMessage);
+            return;
+        }
+
         setLoading(true);
         setError('');
         try {
             await onSubmit({
                 name: name.trim(),
                 description: description.trim() || undefined,
-                frequency
+                ...schedulePayload(schedule),
             });
             onClose();
         } catch (err: any) {
@@ -83,19 +89,7 @@ export const EditHabitModal = ({
                         />
                     </div>
 
-                    <div>
-                        <label>Frequency</label>
-                        <select
-                            value={frequency}
-                            onChange={(e) => setFrequency(e.target.value as Frequency)}
-                            disabled={loading}
-                        >
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                    </div>
+                    <ScheduleFields value={schedule} onChange={setSchedule} disabled={loading} />
 
                     <div>
                         <button type="button" onClick={onClose} disabled={loading}>

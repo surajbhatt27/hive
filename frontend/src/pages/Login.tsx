@@ -1,6 +1,11 @@
 import { useState } from "react"
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+
+// Where to go after signing in: an invite link the visitor came from, or the
+// dashboard. Only same-app paths are accepted.
+const safeRedirect = (value: string | null) =>
+    value && value.startsWith('/') && !value.startsWith('//') ? value : '/dashboard';
 
 
 function Login() {
@@ -9,13 +14,15 @@ function Login() {
     const [error, setError] = useState('');
     const {login} = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const redirect = safeRedirect(searchParams.get('redirect'));
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError("");
         try {
             await login(email, password);
-            navigate('/dashboard');
+            navigate(redirect, { replace: true });
         } catch (error: any) {
             setError(error.response?.data?.message || "login failed")
         }
@@ -39,6 +46,10 @@ function Login() {
             required
             />
             <button type="submit">Login</button>
+            <p>
+                No account?{' '}
+                <Link to={`/register?redirect=${encodeURIComponent(redirect)}`}>Create one</Link>
+            </p>
         </form>
     )
 }

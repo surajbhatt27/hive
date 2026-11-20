@@ -1,11 +1,12 @@
 import { useState } from "react";
-
-type Frequency = 'daily' | 'weekly' | 'monthly' | 'custom';
+import type { CreateHabitData } from "../services/habit";
+import { emptyScheduleDraft, scheduleError, schedulePayload, type ScheduleDraft } from "../utils/schedule";
+import { ScheduleFields } from "./ScheduleFields";
 
 interface CreateHabitModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: { name: string; description?: string; type: 'space' | 'personal'; frequency: Frequency }) => Promise<void>;
+    onSubmit: (data: CreateHabitData) => Promise<void>;
     isAdmin: boolean;
 }
 
@@ -18,7 +19,7 @@ export const CreateHabitModal = ({
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [type, setType] = useState<'space' | 'personal'>('personal');
-    const [frequency, setFrequency] = useState<Frequency>('daily');
+    const [schedule, setSchedule] = useState<ScheduleDraft>(emptyScheduleDraft);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -31,6 +32,12 @@ export const CreateHabitModal = ({
             return;
         }
 
+        const scheduleMessage = scheduleError(schedule);
+        if (scheduleMessage) {
+            setError(scheduleMessage);
+            return;
+        }
+
         setLoading(true);
         setError('');
         try {
@@ -38,12 +45,12 @@ export const CreateHabitModal = ({
                 name: name.trim(),
                 description: description.trim() || undefined,
                 type,
-                frequency
+                ...schedulePayload(schedule),
             });
             setName('');
             setDescription('');
             setType('personal');
-            setFrequency('daily');
+            setSchedule(emptyScheduleDraft());
             onClose();
         } catch (err: any) {
             setError(err.message || 'Failed to create habit');
@@ -99,19 +106,7 @@ export const CreateHabitModal = ({
                         )}
                     </div>
 
-                    <div>
-                        <label>Frequency</label>
-                        <select
-                            value={frequency}
-                            onChange={(e) => setFrequency(e.target.value as Frequency)}
-                            disabled={loading}
-                        >
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                    </div>
+                    <ScheduleFields value={schedule} onChange={setSchedule} disabled={loading} />
 
                     <div>
                         <button type="button" onClick={onClose} disabled={loading}>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { spaceService, type CreateSpaceData, type Space } from "../services/space";
+import { useAuth } from "./AuthContext";
 
 interface SpaceContextType {
     spaces: Space[];
@@ -17,14 +18,22 @@ interface SpaceContextType {
 export const SpaceContext = createContext<SpaceContextType| undefined>(undefined);
 
 export const SpaceProvider = ({children}: {children: ReactNode}) => {
+    const { user } = useAuth();
     const [spaces, setSpaces] = useState<Space[]>([]);
     const [currentSpace, setCurrentSpace] = useState<Space | null>(null);
     const [error, setError] = useState<string | null>('');
     const [loading, setLoading] = useState(true);
 
+    // Spaces are per user: load them once signed in (including right after
+    // login/registration) and drop them on sign-out.
     useEffect(() => {
-        fetchSpaces();
-    }, []);
+        if (user) {
+            fetchSpaces();
+        } else {
+            setSpaces([]);
+            setLoading(false);
+        }
+    }, [user?.id]);
 
     const fetchSpaces = async () => {
         try {

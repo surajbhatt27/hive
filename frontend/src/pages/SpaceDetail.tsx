@@ -7,13 +7,14 @@ import type { Space } from "../services/space";
 import { HabitCard } from "../components/HabitCard";
 import { CreateHabitModal } from "../components/CreateHabitModal";
 import { EditHabitModal } from "../components/EditHabitModal";
-import type { Habit } from "../services/habit";
+import type { CreateHabitData, Habit, UpdateHabitData } from "../services/habit";
+import { memberService } from "../services/member";
 
 function SpaceDetailContent() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { getSpace, deleteSpace, updateSpace } = useSpaces();
+    const { getSpace, deleteSpace, updateSpace, fetchSpaces } = useSpaces();
     const { habits, loading: habitsLoading, fetchHabits, createHabit, updateHabit, deleteHabit, toggleHabit } = useHabits();
     
     const [space, setSpace] = useState<Space | null>(null);
@@ -69,6 +70,20 @@ function SpaceDetailContent() {
         }
     };
 
+    // Members leave through the same endpoint admins use to remove people; the
+    // backend allows self-removal and keeps check-in history intact.
+    const handleLeave = async () => {
+        if (!space || !user) return;
+        if (!window.confirm(`Leave "${space.name}"? You'll need an invite to rejoin.`)) return;
+        try {
+            await memberService.remove(space.id, user.id);
+            await fetchSpaces();
+            navigate('/spaces');
+        } catch (error: any) {
+            setError(error.response?.data?.message || error.message || "Failed to leave space");
+        }
+    };
+
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!space) return;
@@ -85,14 +100,12 @@ function SpaceDetailContent() {
         }
     };
 
-    type Frequency = 'daily' | 'weekly' | 'monthly' | 'custom';
-
-    const handleCreateHabit = async (data: { name: string; description?: string; type: 'space' | 'personal'; frequency: Frequency }) => {
+    const handleCreateHabit = async (data: CreateHabitData) => {
         if (!space) return;
         await createHabit(space.id, data);
     };
 
-    const handleUpdateHabit = async (data: { name: string; description?: string; frequency: 'daily' | 'weekly' | 'monthly' | 'custom' }) => {
+    const handleUpdateHabit = async (data: UpdateHabitData) => {
         if (!space || !editingHabit) return;
         await updateHabit(space.id, editingHabit.id, data);
         setEditingHabit(null);
@@ -175,6 +188,7 @@ function SpaceDetailContent() {
                             </>
                         )}
                         <button onClick={() => navigate(`/spaces/${space.id}/members`)}>Members</button>
+                        <button onClick={handleLeave}>Leave Space</button>
                         <button onClick={() => navigate('/spaces')}>Back to Spaces</button>
                     </div>
                 )}

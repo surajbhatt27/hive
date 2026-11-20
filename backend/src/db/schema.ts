@@ -1,6 +1,8 @@
+import { sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { unique } from "drizzle-orm/pg-core";
-import { varchar ,pgTable, boolean, date, timestamp, serial, integer} from "drizzle-orm/pg-core";
+import { varchar ,pgTable, boolean, date, jsonb, timestamp, serial, integer} from "drizzle-orm/pg-core";
+import type { HabitSchedule } from "../utils/schedule";
 
 export const users = pgTable('users',{
     id: serial('id').primaryKey(),
@@ -48,6 +50,8 @@ export const habits = pgTable('habits', {
     description: varchar('description', {length: 500}),
     type: varchar('type', {length: 20}).notNull().default('personal'),
     frequency: varchar('frequency', {length: 20}).notNull().default('daily'),
+    // Which days the habit is scheduled on; `frequency` names the shape.
+    schedule: jsonb('schedule').$type<HabitSchedule>().notNull().default(sql`'{"kind":"daily"}'::jsonb`),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull()

@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+
+const safeRedirect = (value: string | null) =>
+    value && value.startsWith('/') && !value.startsWith('//') ? value : '/dashboard';
 
 function Register() {
     const [name, setName] = useState('');
@@ -9,13 +12,15 @@ function Register() {
     const [error, setError] = useState('');
     const {register} = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const redirect = safeRedirect(searchParams.get('redirect'));
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError("");
         try {
             await register(name, email, password);
-            navigate('/dashboard');
+            navigate(redirect, { replace: true });
         } catch (error: any) {
             setError(error.response?.data?.message || "Registration failed")
         }
@@ -47,6 +52,10 @@ function Register() {
             required
             />
             <button type="submit">Register</button>
+            <p>
+                Already have an account?{' '}
+                <Link to={`/login?redirect=${encodeURIComponent(redirect)}`}>Sign in</Link>
+            </p>
         </form>
     )
 }

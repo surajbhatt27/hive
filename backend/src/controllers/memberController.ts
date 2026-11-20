@@ -167,12 +167,22 @@ export const removeMember = async (req: Request, res: Response) => {
             });
         }
 
+        const isSelf = targetUserId === req.userId;
+
+        // Members can leave on their own, but only admins can remove others.
+        if (!isSelf && req.spaceRole !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: "Only admins can remove other members"
+            });
+        }
+
         if (membership.role === 'admin') {
             const admins = await countAdmins(spaceId);
             if (admins <= 1) {
                 return res.status(400).json({
                     success: false,
-                    message: membership.userId === req.userId
+                    message: isSelf
                         ? "You are the only admin. Promote another member before leaving."
                         : "A space must have at least one admin"
                 });
@@ -185,7 +195,7 @@ export const removeMember = async (req: Request, res: Response) => {
 
         return res.json({
             success: true,
-            message: "Member removed from space"
+            message: isSelf ? "You left the space" : "Member removed from space"
         });
     } catch (error) {
         console.error('Remove member error:', error);
