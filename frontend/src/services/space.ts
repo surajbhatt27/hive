@@ -41,11 +41,13 @@ export interface SpacePreview {
 export interface SpaceSummary extends Space {
     memberCount: number;
     habitCount: number;
+    dueToday: number;
     completedToday: number;
     habits: {
         id: number;
         name: string;
         type: 'space' | 'personal';
+        due: boolean;
         completed: boolean;
     }[];
 }
@@ -55,6 +57,7 @@ export interface DashboardSummary {
     totals: {
         spaces: number;
         habits: number;
+        dueToday: number;
         completedToday: number;
         members: number;
     };

@@ -2,7 +2,8 @@ import e, { Request, Response } from "express";
 import { db } from "../db";
 import { habitLogs, habits, spaces, userSpaces } from "../db/schema";
 import { and, count, eq, inArray, or } from "drizzle-orm";
-import { dayRange } from "../utils/dates";
+import { dayRange, toDateKey } from "../utils/dates";
+import { isDueOn, scheduleOf } from "../utils/schedule";
 import { getUserTimeZone } from "./logController";
 
 export const createSpace = async (req: Request, res: Response) => {
@@ -284,13 +285,17 @@ export const previewSpaceBySlug = async (req: Request, res: Response) => {
             and(eq(userSpaces.spaceId, space.id), eq(userSpaces.isActive, true))
         );
 
-        const membership = await db.select().from(userSpaces).where(
-            and(
-                eq(userSpaces.userId, req.userId!),
-                eq(userSpaces.spaceId, space.id),
-                eq(userSpaces.isActive, true)
+        // Anonymous visitors can see the invite; only signed-in users have a
+        // membership to report.
+        const membership = req.userId
+            ? await db.select().from(userSpaces).where(
+                and(
+                    eq(userSpaces.userId, req.userId),
+                    eq(userSpaces.spaceId, space.id),
+                    eq(userSpaces.isActive, true)
+                )
             )
-        );
+            : [];
 
         return res.json({
             success: true,
@@ -413,7 +418,7 @@ export const getSpaceSummary = async (req: Request, res: Response) => {
                 success: true,
                 data: {
                     spaces: [],
-                    totals: { spaces: 0, habits: 0, completedToday: 0, members: 0 }
+                    totals: { spaces: 0, habits: 0, dueToday: 0, completedToday: 0, members: 0 }
                 }
             });
         }
@@ -423,6 +428,9 @@ export const getSpaceSummary = async (req: Request, res: Response) => {
             spaceId: habits.spaceId,
             name: habits.name,
             type: habits.type,
+            frequency: habits.frequency,
+            schedule: habits.schedule,
+            createdAt: habits.createdAt,
         })
             .from(habits)
             .where(
@@ -456,6 +464,12 @@ export const getSpaceSummary = async (req: Request, res: Response) => {
 
         const completedIds = new Set(completedRows.map(row => row.habitId));
 
+        const dueIds = new Set(
+            habitRows
+                .filter(habit => isDueOn(scheduleOf(habit), todayKey, toDateKey(habit.createdAt, timeZone)))
+                .map(habit => habit.id)
+        );
+
         const memberRows = await db.select({
             spaceId: userSpaces.spaceId,
             total: count(),
@@ -473,15 +487,18 @@ export const getSpaceSummary = async (req: Request, res: Response) => {
 
         const data = spaceRows.map(space => {
             const spaceHabits = habitRows.filter(habit => habit.spaceId === space.id);
+            const dueHabits = spaceHabits.filter(habit => dueIds.has(habit.id));
             return {
                 ...space,
                 memberCount: memberCounts.get(space.id) ?? 0,
                 habitCount: spaceHabits.length,
-                completedToday: spaceHabits.filter(habit => completedIds.has(habit.id)).length,
+                dueToday: dueHabits.length,
+                completedToday: dueHabits.filter(habit => completedIds.has(habit.id)).length,
                 habits: spaceHabits.map(habit => ({
                     id: habit.id,
                     name: habit.name,
                     type: habit.type,
+                    due: dueIds.has(habit.id),
                     completed: completedIds.has(habit.id),
                 })),
             };
@@ -494,6 +511,7 @@ export const getSpaceSummary = async (req: Request, res: Response) => {
                 totals: {
                     spaces: data.length,
                     habits: data.reduce((total, space) => total + space.habitCount, 0),
+                    dueToday: data.reduce((total, space) => total + space.dueToday, 0),
                     completedToday: data.reduce((total, space) => total + space.completedToday, 0),
                     members: data.reduce((total, space) => total + space.memberCount, 0),
                 }

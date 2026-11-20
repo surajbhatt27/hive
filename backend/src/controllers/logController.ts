@@ -3,11 +3,23 @@ import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { habitLogs, habits, userSpaces, users } from "../db/schema";
 import { addDays, dayRange, normalizeTimeZone, toDateKey } from "../utils/dates";
+import { isDueOn, scheduleOf } from "../utils/schedule";
+
+// Streaks are looked up in the stored 400-day log window.
+const STREAK_HORIZON_DAYS = 400;
 
 export interface HabitStat {
     completedToday: boolean;
+    dueToday: boolean;
     streak: number;
     lastCompletedAt: Date | null;
+}
+
+interface HabitForStats {
+    id: number;
+    frequency: string;
+    schedule: unknown;
+    createdAt: Date;
 }
 
 const param = (value: string | string[] | undefined): string =>
@@ -51,17 +63,16 @@ export const getUserTimeZone = async (userId: number): Promise<string> => {
 
 export const getHabitStats = async (
     userId: number,
-    habitIds: number[],
+    habitList: HabitForStats[],
     timeZone?: string
 ): Promise<Map<number, HabitStat>> => {
     const stats = new Map<number, HabitStat>();
-    for (const habitId of habitIds) {
-        stats.set(habitId, { completedToday: false, streak: 0, lastCompletedAt: null });
-    }
-    if (habitIds.length === 0) return stats;
+    if (habitList.length === 0) return stats;
 
+    const habitIds = habitList.map(habit => habit.id);
     const zone = timeZone ?? await getUserTimeZone(userId);
     const todayKey = toDateKey(new Date(), zone);
+    const horizonKey = addDays(todayKey, -STREAK_HORIZON_DAYS);
 
     const logs = await db.select({
         habitId: habitLogs.habitId,
@@ -74,7 +85,7 @@ export const getHabitStats = async (
                 eq(habitLogs.userId, userId),
                 inArray(habitLogs.habitId, habitIds),
                 eq(habitLogs.isActive, true),
-                gte(habitLogs.logDate, addDays(todayKey, -400))
+                gte(habitLogs.logDate, horizonKey)
             )
         );
 
@@ -93,23 +104,30 @@ export const getHabitStats = async (
         }
     }
 
-    for (const habitId of habitIds) {
-        const days = daysByHabit.get(habitId);
-        if (!days) continue;
+    for (const habit of habitList) {
+        const days = daysByHabit.get(habit.id);
+        const schedule = scheduleOf(habit);
+        const anchorKey = toDateKey(habit.createdAt, zone);
+        const dueToday = isDueOn(schedule, todayKey, anchorKey);
 
-        // A streak stays alive until today ends, so count from yesterday when
-        // today has not been completed yet.
-        let cursor = days.has(todayKey) ? todayKey : addDays(todayKey, -1);
+        // A due-but-unfinished today does not break the streak until the day
+        // ends, and days the habit is not scheduled for are skipped entirely.
+        let cursor = dueToday && !days?.has(todayKey) ? addDays(todayKey, -1) : todayKey;
         let streak = 0;
-        while (days.has(cursor)) {
-            streak += 1;
+
+        while (cursor >= horizonKey) {
+            if (isDueOn(schedule, cursor, anchorKey)) {
+                if (!days?.has(cursor)) break;
+                streak += 1;
+            }
             cursor = addDays(cursor, -1);
         }
 
-        stats.set(habitId, {
-            completedToday: days.has(todayKey),
+        stats.set(habit.id, {
+            completedToday: days?.has(todayKey) ?? false,
+            dueToday,
             streak,
-            lastCompletedAt: lastByHabit.get(habitId) ?? null,
+            lastCompletedAt: lastByHabit.get(habit.id) ?? null,
         });
     }
 
@@ -152,9 +170,9 @@ export const checkIn = async (req: Request, res: Response) => {
             });
         }
 
-        const note = typeof req.body?.note === 'string' && req.body.note.trim()
-            ? req.body.note.trim().slice(0, 500)
-            : null;
+        // A check-in can add, replace or clear (empty string) the day's note.
+        const hasNote = typeof req.body?.note === 'string';
+        const note = hasNote ? (req.body.note.trim().slice(0, 500) || null) : null;
 
         const timeZone = await getUserTimeZone(userId);
         const { key } = dayRange(new Date(), timeZone);
@@ -174,16 +192,17 @@ export const checkIn = async (req: Request, res: Response) => {
             set: {
                 isActive: true,
                 completedAt: new Date(),
-                ...(note ? { note } : {}),
+                ...(hasNote ? { note } : {}),
             },
         });
 
-        const stats = await getHabitStats(userId, [habitId], timeZone);
+        const stats = await getHabitStats(userId, [habit], timeZone);
 
         return res.status(201).json({
             success: true,
             data: {
                 completedToday: true,
+                dueToday: stats.get(habitId)?.dueToday ?? false,
                 streak: stats.get(habitId)?.streak ?? 1,
                 lastCompletedAt: stats.get(habitId)?.lastCompletedAt ?? new Date(),
             },
@@ -257,12 +276,13 @@ export const undoCheckIn = async (req: Request, res: Response) => {
             .set({ isActive: false })
             .where(eq(habitLogs.id, existing.id));
 
-        const stats = await getHabitStats(userId, [habitId], timeZone);
+        const stats = await getHabitStats(userId, [habit], timeZone);
 
         return res.json({
             success: true,
             data: {
                 completedToday: false,
+                dueToday: stats.get(habitId)?.dueToday ?? false,
                 streak: stats.get(habitId)?.streak ?? 0,
                 lastCompletedAt: stats.get(habitId)?.lastCompletedAt ?? null,
             },
@@ -342,7 +362,7 @@ export const getHabitLogs = async (req: Request, res: Response) => {
             .where(and(...conditions))
             .orderBy(desc(habitLogs.logDate), desc(habitLogs.completedAt));
 
-        const stats = await getHabitStats(userId, [habitId], timeZone);
+        const stats = await getHabitStats(userId, [habit], timeZone);
         const stat = stats.get(habitId);
 
         return res.json({
@@ -350,6 +370,7 @@ export const getHabitLogs = async (req: Request, res: Response) => {
             data: {
                 logs,
                 completedToday: stat?.completedToday ?? false,
+                dueToday: stat?.dueToday ?? false,
                 streak: stat?.streak ?? 0,
                 lastCompletedAt: stat?.lastCompletedAt ?? null,
             }

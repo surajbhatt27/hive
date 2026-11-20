@@ -1,4 +1,6 @@
+import { Link } from "react-router-dom";
 import { type Habit } from "../services/habit";
+import { describeSchedule } from "../utils/schedule";
 
 interface HabitCardProps {
     habit: Habit;
@@ -23,6 +25,7 @@ export const HabitCard = ({
             : habit.createdBy === currentUserId;
 
     const canDelete = canEdit;
+    const due = habit.dueToday !== false;
 
     return (
         <div>
@@ -34,7 +37,7 @@ export const HabitCard = ({
                 </h3>
                 {habit.description && <p>{habit.description}</p>}
                 <div>
-                    <span>Frequency: {habit.frequency}</span>
+                    <span>Schedule: {describeSchedule(habit.schedule, habit.frequency)}</span>
                     <span> | Created: {new Date(habit.createdAt).toLocaleDateString()}</span>
                     {typeof habit.streak === 'number' && habit.streak > 0 && (
                         <span> | Streak: {habit.streak} day{habit.streak === 1 ? '' : 's'}</span>
@@ -43,10 +46,13 @@ export const HabitCard = ({
             </div>
             <div>
                 {onToggle && (
-                    <button onClick={() => onToggle(habit)}>
-                        {habit.completedToday ? '✓ Done today (undo)' : 'Mark done today'}
+                    <button onClick={() => onToggle(habit)} disabled={!due}>
+                        {!due
+                            ? 'Not due today'
+                            : habit.completedToday ? '✓ Done today (undo)' : 'Mark done today'}
                     </button>
                 )}
+                <Link to={`/spaces/${habit.spaceId}/habits/${habit.id}`}>History</Link>
                 {canEdit && (
                     <>
                         <button onClick={() => onEdit(habit)}>Edit</button>

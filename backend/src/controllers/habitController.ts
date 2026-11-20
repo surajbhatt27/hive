@@ -3,6 +3,7 @@ import { db } from "../db";
 import { habits, userSpaces } from "../db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { getHabitStats } from "./logController";
+import { isFrequency, parseScheduleInput } from "../utils/schedule";
 
 export const getHabits = async (req: Request, res: Response) => {
     try {
@@ -83,13 +84,14 @@ export const getHabits = async (req: Request, res: Response) => {
             );
             habitList = [...spaceHabits, ...personalHabits];
         }
-        const stats = await getHabitStats(userId, habitList.map(habit => habit.id));
+        const stats = await getHabitStats(userId, habitList);
 
         return res.json({
             success: true,
             data: habitList.map(habit => ({
                 ...habit,
                 completedToday: stats.get(habit.id)?.completedToday ?? false,
+                dueToday: stats.get(habit.id)?.dueToday ?? true,
                 streak: stats.get(habit.id)?.streak ?? 0,
                 lastCompletedAt: stats.get(habit.id)?.lastCompletedAt ?? null,
             }))
@@ -147,13 +149,14 @@ export const getHabitById = async (req: Request, res: Response) => {
             });
         }
 
-        const stats = await getHabitStats(userId, [habit[0].id]);
+        const stats = await getHabitStats(userId, [habit[0]]);
 
         return res.json({
             success: true,
             data: {
                 ...habit[0],
                 completedToday: stats.get(habit[0].id)?.completedToday ?? false,
+                dueToday: stats.get(habit[0].id)?.dueToday ?? true,
                 streak: stats.get(habit[0].id)?.streak ?? 0,
                 lastCompletedAt: stats.get(habit[0].id)?.lastCompletedAt ?? null,
             }
@@ -172,7 +175,7 @@ export const createHabit = async (req: Request, res: Response) => {
         const { spaceId } = req.params;
         const spaceIdString = Array.isArray(spaceId) ? spaceId[0] : spaceId;
         const userId = req.userId!;
-        const { name, description, type, frequency } = req.body;
+        const { name, description, type, frequency, weekdays, monthDays, intervalDays } = req.body;
 
         if (!name || !name.trim()) {
             return res.status(400).json({
@@ -209,12 +212,19 @@ export const createHabit = async (req: Request, res: Response) => {
             habitType = 'personal';
         }
 
-        const validFrequencies = ['daily', 'weekly', 'monthly', 'custom'];
         const habitFrequency = frequency || 'daily';
-        if (!validFrequencies.includes(habitFrequency)) {
+        if (!isFrequency(habitFrequency)) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid frequency. Must be: daily, weekly, monthly, or custom"
+            });
+        }
+
+        const parsedSchedule = parseScheduleInput(habitFrequency, { weekdays, monthDays, intervalDays });
+        if ('error' in parsedSchedule) {
+            return res.status(400).json({
+                success: false,
+                message: parsedSchedule.error
             });
         }
 
@@ -225,16 +235,21 @@ export const createHabit = async (req: Request, res: Response) => {
             description: description?.trim() || null,
             type: habitType,
             frequency: habitFrequency,
+            schedule: parsedSchedule.schedule,
             isActive: true,
         }).returning();
+
+        const stats = await getHabitStats(userId, [newHabit]);
+        const stat = stats.get(newHabit.id);
 
         return res.status(201).json({
             success: true,
             data: {
                 ...newHabit,
-                completedToday: false,
-                streak: 0,
-                lastCompletedAt: null,
+                completedToday: stat?.completedToday ?? false,
+                dueToday: stat?.dueToday ?? true,
+                streak: stat?.streak ?? 0,
+                lastCompletedAt: stat?.lastCompletedAt ?? null,
             },
             message: "Habit created successfully"
         });
@@ -254,7 +269,7 @@ export const updateHabit = async (req: Request, res: Response) => {
         const spaceIdString = Array.isArray(spaceId) ? spaceId[0] : spaceId;
         const habitIdString = Array.isArray(habitId) ? habitId[0] : habitId;
         const userId = req.userId!;
-        const { name, description, frequency } = req.body;
+        const { name, description, frequency, weekdays, monthDays, intervalDays } = req.body;
 
         const membership = await db.select().from(userSpaces).where(
             and(
@@ -306,15 +321,28 @@ export const updateHabit = async (req: Request, res: Response) => {
         const updateData: any = {};
         if (name) updateData.name = name.trim();
         if (description !== undefined) updateData.description = description?.trim() || null;
-        if (frequency) {
-            const validFrequencies = ['daily', 'weekly', 'monthly', 'custom'];
-            if (!validFrequencies.includes(frequency)) {
+
+        // Changing the frequency rebuilds the schedule; the client sends the
+        // day/interval fields along with it.
+        if (frequency !== undefined || weekdays !== undefined || monthDays !== undefined || intervalDays !== undefined) {
+            const nextFrequency = frequency ?? habit[0].frequency;
+            if (!isFrequency(nextFrequency)) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid frequency. Must be: daily, weekly, monthly, or custom"
                 });
             }
-            updateData.frequency = frequency;
+
+            const parsedSchedule = parseScheduleInput(nextFrequency, { weekdays, monthDays, intervalDays });
+            if ('error' in parsedSchedule) {
+                return res.status(400).json({
+                    success: false,
+                    message: parsedSchedule.error
+                });
+            }
+
+            updateData.frequency = nextFrequency;
+            updateData.schedule = parsedSchedule.schedule;
         }
         updateData.updatedAt = new Date();
 
@@ -323,9 +351,18 @@ export const updateHabit = async (req: Request, res: Response) => {
             .where(eq(habits.id, parseInt(habitIdString)))
             .returning();
 
+        const stats = await getHabitStats(userId, [updatedHabit]);
+        const stat = stats.get(updatedHabit.id);
+
         return res.json({
             success: true,
-            data: updatedHabit,
+            data: {
+                ...updatedHabit,
+                completedToday: stat?.completedToday ?? false,
+                dueToday: stat?.dueToday ?? true,
+                streak: stat?.streak ?? 0,
+                lastCompletedAt: stat?.lastCompletedAt ?? null,
+            },
             message: "Habit updated successfully"
         });
 

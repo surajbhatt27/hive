@@ -9,6 +9,21 @@ declare global {
     }
 }
 
+// Attaches the user when a valid token is present, but lets anonymous requests
+// through. Used by public pages (e.g. an invite preview) that personalize
+// their response when someone is already signed in.
+export const optionalAuth = (req: Request, _res: Response, next: NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+        try {
+            req.userId = verifyAccessToken(authHeader.slice(7)).userId;
+        } catch {
+            // An expired token is treated as anonymous.
+        }
+    }
+    next();
+};
+
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers.authorization;

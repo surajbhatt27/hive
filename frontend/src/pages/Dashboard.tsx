@@ -78,7 +78,9 @@ export default function Dashboard() {
                 </div>
                 <div>
                     <div className="text-sm">Done today</div>
-                    <div className="text-xl">{totals?.completedToday ?? 0}</div>
+                    <div className="text-xl">
+                        {totals?.completedToday ?? 0}/{totals?.dueToday ?? 0}
+                    </div>
                 </div>
             </div>
 
@@ -100,7 +102,7 @@ export default function Dashboard() {
                                 <div>
                                     <Link to={`/spaces/${space.id}`} className="font-medium">{space.name}</Link>
                                     <div className="text-sm">
-                                        {space.role} · {space.memberCount} member{space.memberCount === 1 ? '' : 's'} · {space.completedToday}/{space.habitCount} done today
+                                        {space.role} · {space.memberCount} member{space.memberCount === 1 ? '' : 's'} · {space.completedToday}/{space.dueToday} due today
                                     </div>
                                 </div>
                                 <Link to={`/spaces/${space.id}`}>Open</Link>
@@ -116,7 +118,8 @@ export default function Dashboard() {
                                             <li key={habit.id} className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => toggleHabit(space.id, habit.id, habit.completed)}
-                                                    disabled={pending === key}
+                                                    disabled={pending === key || !habit.due}
+                                                    title={habit.due ? undefined : 'Not scheduled today'}
                                                 >
                                                     {habit.completed ? '✓' : '○'}
                                                 </button>
@@ -124,6 +127,7 @@ export default function Dashboard() {
                                                     {habit.name}
                                                     {habit.type === 'space' && <span className="text-sm"> [Space]</span>}
                                                     {habit.type === 'personal' && <span className="text-sm"> [Personal]</span>}
+                                                    {!habit.due && <span className="text-sm"> (not due today)</span>}
                                                 </span>
                                             </li>
                                         );

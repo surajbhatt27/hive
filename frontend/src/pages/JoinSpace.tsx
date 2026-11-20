@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { spaceService, type SpacePreview } from "../services/space";
+import { useAuth } from "../context/AuthContext";
+import { useSpaces } from "../context/SpaceContext";
 
 export default function JoinSpace() {
     const { slug } = useParams<{ slug: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const { fetchSpaces } = useSpaces();
     const [space, setSpace] = useState<SpacePreview | null>(null);
     const [loading, setLoading] = useState(true);
     const [joining, setJoining] = useState(false);
@@ -35,6 +39,7 @@ export default function JoinSpace() {
         setError("");
         try {
             const response = await spaceService.joinSpace(slug);
+            await fetchSpaces();
             navigate(`/spaces/${response.data.data.id}`);
         } catch (err: any) {
             setError(err.response?.data?.message || "Failed to join space");
@@ -74,7 +79,7 @@ export default function JoinSpace() {
                         Open space
                     </button>
                 </div>
-            ) : (
+            ) : user ? (
                 <div className="space-y-3">
                     <button onClick={handleJoin} disabled={joining}>
                         {joining ? 'Joining...' : 'Join space'}
@@ -82,6 +87,19 @@ export default function JoinSpace() {
                     <button onClick={() => navigate('/spaces')} disabled={joining}>
                         Cancel
                     </button>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <p>Sign in or create an account to join this space.</p>
+                    <div className="flex items-center gap-3">
+                        <Link to={`/login?redirect=${encodeURIComponent(`/join/${slug ?? ''}`)}`}>
+                            Sign in
+                        </Link>
+                        <Link to={`/register?redirect=${encodeURIComponent(`/join/${slug ?? ''}`)}`}>
+                            Create account
+                        </Link>
+                    </div>
+                    <button onClick={() => navigate('/login')}>Cancel</button>
                 </div>
             )}
         </div>

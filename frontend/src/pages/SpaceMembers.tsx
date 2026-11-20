@@ -10,7 +10,7 @@ export default function SpaceMembers() {
     const spaceId = Number(id);
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { getSpace } = useSpaces();
+    const { getSpace, fetchSpaces } = useSpaces();
 
     const [space, setSpace] = useState<Space | null>(null);
     const [members, setMembers] = useState<SpaceMember[]>([]);
@@ -63,10 +63,27 @@ export default function SpaceMembers() {
             await memberService.remove(spaceId, member.userId);
             setMembers(prev => prev.filter(m => m.userId !== member.userId));
             if (member.userId === user?.id) {
+                await fetchSpaces();
                 navigate('/spaces');
             }
         } catch (err: any) {
             setError(err.response?.data?.message || "Failed to remove member");
+        } finally {
+            setBusyUserId(null);
+        }
+    };
+
+    const handleLeave = async () => {
+        if (!space || !user) return;
+        if (!window.confirm(`Leave "${space.name}"? You'll need an invite to rejoin.`)) return;
+        setBusyUserId(user.id);
+        setError("");
+        try {
+            await memberService.remove(spaceId, user.id);
+            await fetchSpaces();
+            navigate('/spaces');
+        } catch (err: any) {
+            setError(err.response?.data?.message || "Failed to leave space");
         } finally {
             setBusyUserId(null);
         }
@@ -157,7 +174,14 @@ export default function SpaceMembers() {
                 ))}
             </div>
 
-            <button onClick={() => navigate(`/spaces/${space.id}`)}>Back to space</button>
+            <div className="flex items-center gap-2">
+                {!isAdmin && (
+                    <button onClick={handleLeave} disabled={busyUserId === user?.id}>
+                        Leave space
+                    </button>
+                )}
+                <button onClick={() => navigate(`/spaces/${space.id}`)}>Back to space</button>
+            </div>
         </div>
     );
 }

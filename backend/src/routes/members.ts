@@ -10,6 +10,8 @@ router.use(requireSpaceMember);
 
 router.get('/', getMembers);
 router.put('/:userId', requireSpaceAdmin, updateMemberRole);
-router.delete('/:userId', requireSpaceAdmin, removeMember);
+// No admin gate here: every member may remove themselves. The controller
+// blocks members from removing anyone else.
+router.delete('/:userId', removeMember);
 
 export default router;
