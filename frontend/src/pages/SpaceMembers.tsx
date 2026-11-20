@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useSpaces } from "../context/SpaceContext";
 import { memberService, type SpaceMember, type SpaceRole } from "../services/member";
@@ -102,12 +102,12 @@ export default function SpaceMembers() {
     };
 
     if (loading) {
-        return <div className="p-6">Loading members...</div>;
+        return <p className="eyebrow animate-pulse">Loading members…</p>;
     }
 
     if (!space) {
         return (
-            <div className="p-6 space-y-3">
+            <div className="space-y-3">
                 <p>{error || "Space not found"}</p>
                 <button onClick={() => navigate('/spaces')}>Back to spaces</button>
             </div>
@@ -118,69 +118,90 @@ export default function SpaceMembers() {
     const inviteLink = `${window.location.origin}/join/${space.slug}`;
 
     return (
-        <div className="p-6 space-y-4">
-            <div className="space-y-1">
-                <h1 className="text-2xl font-semibold">{space.name} members</h1>
-                <p className="text-sm">Admins manage settings and space habits. Members track habits.</p>
-            </div>
-
-            {error && <div className="text-red-500">{error}</div>}
-
-            <div className="space-y-2">
-                <h2 className="text-lg">Invite people</h2>
-                <p className="text-sm">Share this link so others can join this space.</p>
-                <div className="flex items-center gap-2">
-                    <code className="text-sm break-all">{inviteLink}</code>
-                    <button onClick={copyInvite}>{copied ? 'Copied' : 'Copy link'}</button>
+        <div className="space-y-8">
+            <header className="space-y-3">
+                <Link to={`/spaces/${space.id}`} className="inline-block text-sm">← Back to {space.name}</Link>
+                <div className="space-y-1">
+                    <p className="eyebrow">{members.length} member{members.length === 1 ? '' : 's'}</p>
+                    <h1>People in this space</h1>
+                    <p className="text-sm">
+                        Admins manage settings and space habits. Members track habits.
+                    </p>
                 </div>
-            </div>
+            </header>
 
-            <hr />
+            {error && <p className="alert">{error}</p>}
 
-            <div className="space-y-2">
-                <h2 className="text-lg">Members ({members.length})</h2>
-                {members.map(member => (
-                    <div key={member.userId} className="flex items-center justify-between gap-2">
-                        <div>
-                            <div>
-                                {member.name}
-                                {member.userId === user?.id && <span className="text-sm"> (you)</span>}
+            <section className="card space-y-3 p-5">
+                <div>
+                    <h2 className="mb-0.5">Invite someone</h2>
+                    <p className="text-sm">Anyone with this link can join this space.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <code className="min-w-0 flex-1 truncate rounded-md border border-line bg-paper px-3 py-2 text-muted">
+                        {inviteLink}
+                    </code>
+                    <button className="btn-primary" onClick={copyInvite}>
+                        {copied ? 'Copied ✓' : 'Copy link'}
+                    </button>
+                </div>
+            </section>
+
+            <section className="space-y-3">
+                <h2>Members</h2>
+                <ul className="divide-y divide-line border-y border-line">
+                    {members.map(member => (
+                        <li
+                            key={member.userId}
+                            className="flex flex-wrap items-center justify-between gap-2 py-3"
+                        >
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">{member.name}</span>
+                                    {member.userId === user?.id && <span className="tag">you</span>}
+                                </div>
+                                <div className="truncate text-sm text-muted">{member.email}</div>
                             </div>
-                            <div className="text-sm">{member.email}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {isAdmin ? (
-                                <select
-                                    value={member.role}
-                                    disabled={busyUserId === member.userId}
-                                    onChange={(e) => handleRoleChange(member, e.target.value as SpaceRole)}
-                                >
-                                    <option value="admin">Admin</option>
-                                    <option value="member">Member</option>
-                                </select>
-                            ) : (
-                                <span className="text-sm">{member.role}</span>
-                            )}
-                            {isAdmin && (
-                                <button
-                                    onClick={() => handleRemove(member)}
-                                    disabled={busyUserId === member.userId}
-                                >
-                                    Remove
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+
+                            <div className="flex items-center gap-2">
+                                {isAdmin ? (
+                                    <>
+                                        <select
+                                            value={member.role}
+                                            disabled={busyUserId === member.userId}
+                                            onChange={(e) => handleRoleChange(member, e.target.value as SpaceRole)}
+                                            className="w-auto py-1 text-xs"
+                                            aria-label={`Role for ${member.name}`}
+                                        >
+                                            <option value="admin">Admin</option>
+                                            <option value="member">Member</option>
+                                        </select>
+                                        <button
+                                            className="btn-quiet px-2 py-1 text-xs text-clay"
+                                            onClick={() => handleRemove(member)}
+                                            disabled={busyUserId === member.userId}
+                                        >
+                                            Remove
+                                        </button>
+                                    </>
+                                ) : (
+                                    <span className="tag">{member.role}</span>
+                                )}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </section>
 
             <div className="flex items-center gap-2">
                 {!isAdmin && (
-                    <button onClick={handleLeave} disabled={busyUserId === user?.id}>
+                    <button className="btn-danger" onClick={handleLeave} disabled={busyUserId === user?.id}>
                         Leave space
                     </button>
                 )}
-                <button onClick={() => navigate(`/spaces/${space.id}`)}>Back to space</button>
+                <button className="btn-quiet" onClick={() => navigate(`/spaces/${space.id}`)}>
+                    Back to space
+                </button>
             </div>
         </div>
     );

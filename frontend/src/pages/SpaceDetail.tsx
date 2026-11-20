@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSpaces } from "../context/SpaceContext";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { HabitProvider, useHabits } from "../context/HabitContext";
 import type { Space } from "../services/space";
@@ -142,14 +142,14 @@ function SpaceDetailContent() {
     };
 
     if (loading) {
-        return <div>Loading space...</div>;
+        return <p className="eyebrow animate-pulse">Opening space…</p>;
     }
 
     if (!space) {
         return (
-            <div>
+            <div className="space-y-3">
                 <p>Space not found</p>
-                <button onClick={() => navigate('/spaces')}>Back to Spaces</button>
+                <button onClick={() => navigate('/spaces')}>Back to spaces</button>
             </div>
         );
     }
@@ -158,49 +158,51 @@ function SpaceDetailContent() {
     const filteredHabits = getFilteredHabits();
 
     return (
-        <div>
+        <div className="space-y-8">
+            <header className="space-y-4">
+                <Link to="/spaces" className="inline-block text-sm">← All spaces</Link>
+
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-1">
+                        <p className="eyebrow">
+                            {isAdmin ? 'Admin' : 'Member'} · started {new Date(space.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                        </p>
+                        <h1>{space.name}</h1>
+                        {space.description && <p className="max-w-prose">{space.description}</p>}
+                    </div>
+
+                    {!isEditing && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button onClick={() => navigate(`/spaces/${space.id}/members`)}>
+                                Members
+                            </button>
+                            {isAdmin && (
+                                <button onClick={() => setIsEditing(true)}>Edit</button>
+                            )}
+                            {isAdmin ? (
+                                <button className="btn-danger" onClick={handleDelete}>Delete</button>
+                            ) : (
+                                <button className="btn-quiet" onClick={handleLeave}>Leave space</button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </header>
+
             {error && (
-                <div>
-                    {error}
-                    <button onClick={() => setError('')}>✕</button>
+                <div className="alert flex items-start justify-between gap-3">
+                    <span>{error}</span>
+                    <button className="btn-quiet px-1 py-0 text-clay" onClick={() => setError('')}>✕</button>
                 </div>
             )}
 
-            {/* Space Details */}
-            <div>
-                <div>
-                    <h1>{space.name}</h1>
-                    {space.description && <p>{space.description}</p>}
-                    <div>
-                        <span>Role: {space.role}</span>
-                        <span>Slug: {space.slug}</span>
-                        <span>Created: {new Date(space.createdAt).toLocaleDateString()}</span>
-                    </div>
-                </div>
-                
-                {/* Space Actions - Only visible when NOT editing */}
-                {!isEditing && (
-                    <div>
-                        {isAdmin && (
-                            <>
-                                <button onClick={() => setIsEditing(true)}>Edit Space</button>
-                                <button onClick={handleDelete}>Delete Space</button>
-                            </>
-                        )}
-                        <button onClick={() => navigate(`/spaces/${space.id}/members`)}>Members</button>
-                        <button onClick={handleLeave}>Leave Space</button>
-                        <button onClick={() => navigate('/spaces')}>Back to Spaces</button>
-                    </div>
-                )}
-            </div>
-
-            {/* Edit Space Form */}
             {isEditing && (
-                <form onSubmit={handleUpdate}>
-                    <h3>Edit Space</h3>
+                <form onSubmit={handleUpdate} className="card max-w-lg space-y-4 p-5">
+                    <h2>Edit space</h2>
                     <div>
-                        <label>Name *</label>
+                        <label htmlFor="space-name">Name <span className="text-clay">*</span></label>
                         <input
+                            id="space-name"
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
@@ -208,57 +210,69 @@ function SpaceDetailContent() {
                         />
                     </div>
                     <div>
-                        <label>Description</label>
+                        <label htmlFor="space-description">Description</label>
                         <textarea
+                            id="space-description"
                             value={editDescription}
                             onChange={(e) => setEditDescription(e.target.value)}
                             rows={3}
                         />
                     </div>
-                    <div>
-                        <button type="submit">Save Changes</button>
-                        <button type="button" onClick={() => setIsEditing(false)}>Cancel</button>
+                    <div className="flex items-center gap-2">
+                        <button type="submit" className="btn-primary">Save changes</button>
+                        <button type="button" className="btn-quiet" onClick={() => setIsEditing(false)}>
+                            Cancel
+                        </button>
                     </div>
                 </form>
             )}
 
-            <hr />
-
-            {/* Habits Section */}
-            <div>
-                <div>
-                    <h2>Habits</h2>
-                    <div>
+            <section className="space-y-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="space-y-1">
+                        <h2>Habits</h2>
+                        <p className="text-sm">
+                            {isAdmin
+                                ? 'Space habits are shared by everyone here; personal ones are only yours.'
+                                : 'Track your own habits alongside the space ones.'}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
                         <select
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value as 'all' | 'space' | 'personal')}
+                            className="w-auto shrink-0"
+                            aria-label="Filter habits"
                         >
-                            <option value="all">All Habits</option>
-                            <option value="space">Space Habits</option>
-                            <option value="personal">My Personal Habits</option>
+                            <option value="all">All habits</option>
+                            <option value="space">Space habits</option>
+                            <option value="personal">My habits</option>
                         </select>
-                        <button onClick={() => setShowCreateModal(true)}>
-                            + New Habit
+                        <button
+                            className="btn-primary whitespace-nowrap"
+                            onClick={() => setShowCreateModal(true)}
+                        >
+                            + New habit
                         </button>
                     </div>
                 </div>
 
                 {habitsLoading ? (
-                    <div>Loading habits...</div>
+                    <p className="eyebrow animate-pulse">Loading habits…</p>
                 ) : filteredHabits.length === 0 ? (
-                    <div>
-                        <p>No habits yet in this space</p>
-                        <p>
-                            {isAdmin 
-                                ? 'As an admin, you can create space habits for all members or personal habits for yourself'
-                                : 'Create a personal habit to start tracking your progress'}
+                    <div className="empty">
+                        <h3 className="mb-1">No habits here yet</h3>
+                        <p className="mx-auto mb-5 max-w-sm text-sm">
+                            {isAdmin
+                                ? 'Create a habit for everyone in this space, or a personal one just for you.'
+                                : 'Create a personal habit and it will show up here every day it is due.'}
                         </p>
-                        <button onClick={() => setShowCreateModal(true)}>
-                            Create Your First Habit
+                        <button className="btn-primary" onClick={() => setShowCreateModal(true)}>
+                            Create a habit
                         </button>
                     </div>
                 ) : (
-                    <div>
+                    <ul className="divide-y divide-line border-y border-line">
                         {filteredHabits.map((habit) => (
                             <HabitCard
                                 key={habit.id}
@@ -270,11 +284,10 @@ function SpaceDetailContent() {
                                 onToggle={handleToggleHabit}
                             />
                         ))}
-                    </div>
+                    </ul>
                 )}
-            </div>
+            </section>
 
-            {/* Create Habit Modal */}
             <CreateHabitModal
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
@@ -282,7 +295,6 @@ function SpaceDetailContent() {
                 isAdmin={isAdmin}
             />
 
-            {/* Edit Habit Modal */}
             <EditHabitModal
                 isOpen={showEditModal}
                 habit={editingHabit}
@@ -291,7 +303,7 @@ function SpaceDetailContent() {
                     setEditingHabit(null);
                 }}
                 onSubmit={handleUpdateHabit}
-/>
+            />
         </div>
     );
 }

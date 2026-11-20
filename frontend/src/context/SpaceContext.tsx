@@ -44,6 +44,8 @@ export const SpaceProvider = ({children}: {children: ReactNode}) => {
         } catch (error: any) {
             setError(error.response?.data?.message || "Failed to fetch spaces");
             console.error("error in fetching spaces", error);
+        } finally {
+            setLoading(false);
         }
     }
 

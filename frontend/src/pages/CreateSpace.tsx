@@ -32,50 +32,59 @@ export default function CreateSpace() {
         }
     }
     return (
-        <div>
-            <div>
-                <h1>Create New Space</h1>
-                <p>A space is where you'll group related habits</p>
-            </div>
-            <form onSubmit={handleSubmit}>
+        <div className="mx-auto max-w-lg space-y-6">
+            <header className="space-y-1">
+                <p className="eyebrow">New space</p>
+                <h1>Create a space</h1>
+                <p className="text-sm">
+                    A space is where you keep related habits — your own, or shared with the people
+                    you invite.
+                </p>
+            </header>
+
+            <form onSubmit={handleSubmit} className="card space-y-5 p-6">
                 {error && (
-                    <div>
+                    <p className="rounded-md border border-clay/40 bg-clay-soft px-3 py-2 text-sm text-clay">
                         {error}
-                    </div>
+                    </p>
                 )}
+
                 <div>
-                    <label htmlFor="name">Space Name <span>*</span></label>
-                    <input 
-                    id="name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Personal, Work, Book Club"
-                    required
-                    disabled={isSubmitting}
+                    <label htmlFor="name">Space name <span className="text-clay">*</span></label>
+                    <input
+                        id="name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Personal, Work, Book club"
+                        required
+                        disabled={isSubmitting}
                     />
-                    <p>This will be used to generate a unique invite link</p>
+                    <p className="hint">A unique invite link is created from this name.</p>
                 </div>
 
                 <div>
-                    <label htmlFor="description">
-                        Description (optional)
-                    </label>
+                    <label htmlFor="description">Description (optional)</label>
                     <textarea
                         id="description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="What is this space for?"
-                        rows={4}
+                        rows={3}
                         disabled={isSubmitting}
                     />
                 </div>
 
-                <div>
-                    <button type="submit" disabled={isSubmitting}>
-                        {isSubmitting? "Creating" : "Create space"}
+                <div className="flex items-center gap-2 pt-1">
+                    <button type="submit" className="btn-primary" disabled={isSubmitting}>
+                        {isSubmitting ? "Creating…" : "Create space"}
                     </button>
-                    <button type="button" onClick={() => navigate('/spaces')}>
+                    <button
+                        type="button"
+                        className="btn-quiet"
+                        onClick={() => navigate('/spaces')}
+                        disabled={isSubmitting}
+                    >
                         Cancel
                     </button>
                 </div>

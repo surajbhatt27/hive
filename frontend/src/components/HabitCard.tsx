@@ -28,41 +28,58 @@ export const HabitCard = ({
     const due = habit.dueToday !== false;
 
     return (
-        <div>
-            <div>
-                <h3>
-                    {habit.name}
-                    {habit.type === 'space' && <span> [Space]</span>}
-                    {habit.type === 'personal' && <span> [Personal]</span>}
-                </h3>
-                {habit.description && <p>{habit.description}</p>}
-                <div>
-                    <span>Schedule: {describeSchedule(habit.schedule, habit.frequency)}</span>
-                    <span> | Created: {new Date(habit.createdAt).toLocaleDateString()}</span>
+        <li className="flex flex-wrap items-center gap-2 py-3">
+            {onToggle && (
+                <button
+                    className={`check${habit.completedToday ? " check-done" : ""}`}
+                    onClick={() => onToggle(habit)}
+                    disabled={!due}
+                    title={due ? undefined : "Not scheduled today"}
+                    aria-label={habit.completedToday ? `Mark ${habit.name} as not done` : `Mark ${habit.name} as done`}
+                >
+                    {habit.completedToday ? "✓" : ""}
+                </button>
+            )}
+
+            <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className={`font-medium ${due ? "text-ink" : "text-faint"}`}>{habit.name}</span>
+                    <span className="tag">{habit.type === 'space' ? 'Space' : 'Personal'}</span>
                     {typeof habit.streak === 'number' && habit.streak > 0 && (
-                        <span> | Streak: {habit.streak} day{habit.streak === 1 ? '' : 's'}</span>
+                        <span className="tag tag-moss">
+                            {habit.streak} day{habit.streak === 1 ? '' : 's'} streak
+                        </span>
                     )}
                 </div>
+                <div className="mt-0.5 truncate text-xs text-faint">
+                    {describeSchedule(habit.schedule, habit.frequency)}
+                    {habit.description && <> · {habit.description}</>}
+                    {!due && <> · not today</>}
+                </div>
             </div>
-            <div>
-                {onToggle && (
-                    <button onClick={() => onToggle(habit)} disabled={!due}>
-                        {!due
-                            ? 'Not due today'
-                            : habit.completedToday ? '✓ Done today (undo)' : 'Mark done today'}
-                    </button>
-                )}
-                <Link to={`/spaces/${habit.spaceId}/habits/${habit.id}`}>History</Link>
+
+            {/* On a phone the actions drop to their own line so the habit name
+                keeps a readable width. From sm up they sit inline at the right. */}
+            <div className="flex w-full items-center justify-end gap-1 sm:w-auto sm:justify-start">
+                <Link to={`/spaces/${habit.spaceId}/habits/${habit.id}`} className="mr-1 text-sm">
+                    History
+                </Link>
                 {canEdit && (
                     <>
-                        <button onClick={() => onEdit(habit)}>Edit</button>
+                        <button className="btn-quiet px-2 py-1 text-xs" onClick={() => onEdit(habit)}>
+                            Edit
+                        </button>
                         {canDelete && (
-                            <button onClick={() => onDelete(habit.id)}>Delete</button>
+                            <button
+                                className="btn-quiet px-2 py-1 text-xs text-clay"
+                                onClick={() => onDelete(habit.id)}
+                            >
+                                Delete
+                            </button>
                         )}
                     </>
                 )}
             </div>
-            <hr />
-        </div>
+        </li>
     );
 };

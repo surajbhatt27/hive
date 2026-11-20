@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { type Habit, type UpdateHabitData } from "../services/habit";
 import { draftFromHabit, emptyScheduleDraft, scheduleError, schedulePayload, type ScheduleDraft } from "../utils/schedule";
 import { ScheduleFields } from "./ScheduleFields";
+import { Modal } from "./Modal";
 
 interface EditHabitModalProps {
     isOpen: boolean;
@@ -10,22 +11,22 @@ interface EditHabitModalProps {
     onSubmit: (data: UpdateHabitData) => Promise<void>;
 }
 
-export const EditHabitModal = ({ 
-    isOpen, 
-    habit, 
-    onClose, 
-    onSubmit 
+export const EditHabitModal = ({
+    isOpen,
+    habit,
+    onClose,
+    onSubmit
 }: EditHabitModalProps) => {
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
+    const [name, setName] = useState("");
+    const [description, setDescription] = useState("");
     const [schedule, setSchedule] = useState<ScheduleDraft>(emptyScheduleDraft);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState("");
 
     useEffect(() => {
         if (habit) {
             setName(habit.name);
-            setDescription(habit.description || '');
+            setDescription(habit.description || "");
             setSchedule(draftFromHabit(habit));
         }
     }, [habit]);
@@ -35,7 +36,7 @@ export const EditHabitModal = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) {
-            setError('Habit name is required');
+            setError("Habit name is required");
             return;
         }
 
@@ -46,7 +47,7 @@ export const EditHabitModal = ({
         }
 
         setLoading(true);
-        setError('');
+        setError("");
         try {
             await onSubmit({
                 name: name.trim(),
@@ -55,52 +56,55 @@ export const EditHabitModal = ({
             });
             onClose();
         } catch (err: any) {
-            setError(err.message || 'Failed to update habit');
+            setError(err.message || "Failed to update habit");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div>
-            <div>
-                <h2>Edit Habit</h2>
-                
-                {error && <div>{error}</div>}
+        <Modal label="Edit habit" onClose={onClose}>
+            <h2 className="mb-1">Edit habit</h2>
+            <p className="mb-5 text-sm">
+                Changing the schedule only changes which days count from now on.
+            </p>
 
-                <form onSubmit={handleSubmit}>
-                    <div>
-                        <label>Habit Name *</label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            disabled={loading}
-                        />
-                    </div>
+            {error && <p className="alert mb-4">{error}</p>}
 
-                    <div>
-                        <label>Description (optional)</label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            rows={3}
-                            disabled={loading}
-                        />
-                    </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label htmlFor="edit-habit-name">Habit name <span className="text-clay">*</span></label>
+                    <input
+                        id="edit-habit-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        disabled={loading}
+                    />
+                </div>
 
-                    <ScheduleFields value={schedule} onChange={setSchedule} disabled={loading} />
+                <div>
+                    <label htmlFor="edit-habit-description">Description (optional)</label>
+                    <textarea
+                        id="edit-habit-description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        rows={2}
+                        disabled={loading}
+                    />
+                </div>
 
-                    <div>
-                        <button type="button" onClick={onClose} disabled={loading}>
-                            Cancel
-                        </button>
-                        <button type="submit" disabled={loading}>
-                            {loading ? 'Updating...' : 'Update Habit'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                <ScheduleFields value={schedule} onChange={setSchedule} disabled={loading} />
+
+                <div className="flex items-center gap-2 pt-1">
+                    <button type="submit" className="btn-primary" disabled={loading}>
+                        {loading ? "Saving…" : "Save changes"}
+                    </button>
+                    <button type="button" className="btn-quiet" onClick={onClose} disabled={loading}>
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </Modal>
     );
 };

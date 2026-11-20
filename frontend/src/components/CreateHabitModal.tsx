@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CreateHabitData } from "../services/habit";
 import { emptyScheduleDraft, scheduleError, schedulePayload, type ScheduleDraft } from "../utils/schedule";
 import { ScheduleFields } from "./ScheduleFields";
+import { Modal } from "./Modal";
 
 interface CreateHabitModalProps {
     isOpen: boolean;
@@ -10,25 +11,25 @@ interface CreateHabitModalProps {
     isAdmin: boolean;
 }
 
-export const CreateHabitModal = ({ 
-    isOpen, 
-    onClose, 
-    onSubmit, 
-    isAdmin 
+export const CreateHabitModal = ({
+    isOpen,
+    onClose,
+    onSubmit,
+    isAdmin
 }: CreateHabitModalProps) => {
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    const [type, setType] = useState<'space' | 'personal'>('personal');
+    const [name, setName] = useState("");
+    const [description, setDescription] = useState("");
+    const [type, setType] = useState<"space" | "personal">("personal");
     const [schedule, setSchedule] = useState<ScheduleDraft>(emptyScheduleDraft);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState("");
 
     if (!isOpen) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) {
-            setError('Habit name is required');
+            setError("Habit name is required");
             return;
         }
 
@@ -39,7 +40,7 @@ export const CreateHabitModal = ({
         }
 
         setLoading(true);
-        setError('');
+        setError("");
         try {
             await onSubmit({
                 name: name.trim(),
@@ -47,77 +48,78 @@ export const CreateHabitModal = ({
                 type,
                 ...schedulePayload(schedule),
             });
-            setName('');
-            setDescription('');
-            setType('personal');
+            setName("");
+            setDescription("");
+            setType("personal");
             setSchedule(emptyScheduleDraft());
             onClose();
         } catch (err: any) {
-            setError(err.message || 'Failed to create habit');
+            setError(err.message || "Failed to create habit");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div>
-            <div>
-                <h2>Create New Habit</h2>
-                
-                {error && <div>{error}</div>}
+        <Modal label="Create a new habit" onClose={onClose}>
+            <h2 className="mb-1">New habit</h2>
+            <p className="mb-5 text-sm">
+                Something small enough to do on the days it's due.
+            </p>
 
-                <form onSubmit={handleSubmit}>
-                    <div>
-                        <label>Habit Name *</label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g., Read 20 pages"
-                            disabled={loading}
-                        />
-                    </div>
+            {error && <p className="alert mb-4">{error}</p>}
 
-                    <div>
-                        <label>Description (optional)</label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="What's this habit about?"
-                            rows={3}
-                            disabled={loading}
-                        />
-                    </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label htmlFor="habit-name">Habit name <span className="text-clay">*</span></label>
+                    <input
+                        id="habit-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Read 20 pages"
+                        disabled={loading}
+                    />
+                </div>
 
-                    <div>
-                        <label>Type</label>
-                        <select
-                            value={type}
-                            onChange={(e) => setType(e.target.value as 'space' | 'personal')}
-                            disabled={loading || !isAdmin}
-                        >
-                            <option value="personal">Personal (only you)</option>
-                            {isAdmin && (
-                                <option value="space">Space (all members)</option>
-                            )}
-                        </select>
-                        {!isAdmin && type === 'space' && (
-                            <p>Only admins can create space habits</p>
+                <div>
+                    <label htmlFor="habit-description">Description (optional)</label>
+                    <textarea
+                        id="habit-description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="What does doing this look like?"
+                        rows={2}
+                        disabled={loading}
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="habit-type">Who is it for</label>
+                    <select
+                        id="habit-type"
+                        value={type}
+                        onChange={(e) => setType(e.target.value as "space" | "personal")}
+                        disabled={loading || !isAdmin}
+                    >
+                        <option value="personal">Just me</option>
+                        {isAdmin && (
+                            <option value="space">Everyone in this space</option>
                         )}
-                    </div>
+                    </select>
+                </div>
 
-                    <ScheduleFields value={schedule} onChange={setSchedule} disabled={loading} />
+                <ScheduleFields value={schedule} onChange={setSchedule} disabled={loading} />
 
-                    <div>
-                        <button type="button" onClick={onClose} disabled={loading}>
-                            Cancel
-                        </button>
-                        <button type="submit" disabled={loading}>
-                            {loading ? 'Creating...' : 'Create Habit'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                <div className="flex items-center gap-2 pt-1">
+                    <button type="submit" className="btn-primary" disabled={loading}>
+                        {loading ? "Creating…" : "Create habit"}
+                    </button>
+                    <button type="button" className="btn-quiet" onClick={onClose} disabled={loading}>
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </Modal>
     );
 };

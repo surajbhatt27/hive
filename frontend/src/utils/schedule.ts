@@ -44,7 +44,7 @@ export const parseMonthDays = (text: string): number[] => {
     return [...new Set(days)].sort((a, b) => a - b);
 };
 
-export const schedulePayload = (draft: ScheduleDraft): Required<Pick<SchedulePayload, 'frequency'>> & SchedulePayload => {
+export const schedulePayload = (draft: ScheduleDraft): SchedulePayload => {
     if (draft.frequency === 'weekly') {
         return { frequency: 'weekly', weekdays: draft.weekdays };
     }

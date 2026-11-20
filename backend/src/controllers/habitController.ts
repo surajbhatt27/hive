@@ -322,18 +322,16 @@ export const updateHabit = async (req: Request, res: Response) => {
         if (name) updateData.name = name.trim();
         if (description !== undefined) updateData.description = description?.trim() || null;
 
-        // Changing the frequency rebuilds the schedule; the client sends the
-        // day/interval fields along with it.
-        if (frequency !== undefined || weekdays !== undefined || monthDays !== undefined || intervalDays !== undefined) {
-            const nextFrequency = frequency ?? habit[0].frequency;
-            if (!isFrequency(nextFrequency)) {
+        // The client always sends the frequency with its day/interval fields.
+        if (frequency !== undefined) {
+            if (!isFrequency(frequency)) {
                 return res.status(400).json({
                     success: false,
                     message: "Invalid frequency. Must be: daily, weekly, monthly, or custom"
                 });
             }
 
-            const parsedSchedule = parseScheduleInput(nextFrequency, { weekdays, monthDays, intervalDays });
+            const parsedSchedule = parseScheduleInput(frequency, { weekdays, monthDays, intervalDays });
             if ('error' in parsedSchedule) {
                 return res.status(400).json({
                     success: false,
@@ -341,7 +339,7 @@ export const updateHabit = async (req: Request, res: Response) => {
                 });
             }
 
-            updateData.frequency = nextFrequency;
+            updateData.frequency = frequency;
             updateData.schedule = parsedSchedule.schedule;
         }
         updateData.updatedAt = new Date();
