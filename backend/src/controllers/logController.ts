@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "../db";
-import { habitLogs, habits, userSpaces, users } from "../db/schema";
+import { habitLogs, habits, users } from "../db/schema";
 import { addDays, dayRange, normalizeTimeZone, toDateKey } from "../utils/dates";
 import { isDueOn, scheduleOf } from "../utils/schedule";
 
@@ -30,15 +30,29 @@ const toNumber = (value: string): number | null => {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const findMembership = async (userId: number, spaceId: number) => {
-    const [membership] = await db.select().from(userSpaces).where(
-        and(
-            eq(userSpaces.userId, userId),
-            eq(userSpaces.spaceId, spaceId),
-            eq(userSpaces.isActive, true)
-        )
-    );
-    return membership ?? null;
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// Also rejects impossible days like 2026-02-31, which a Date would silently
+// roll over into March.
+const isDateKey = (value: unknown): value is string => {
+    if (typeof value !== 'string' || !DATE_KEY_PATTERN.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
+// The calendar day a check-in refers to: an explicit YYYY-MM-DD (or "today"),
+// defaulting to the user's today. Returns the message to send back when the day
+// is unusable.
+const resolveLogDate = (raw: unknown, todayKey: string): string | { error: string } => {
+    const explicit = raw !== undefined && raw !== 'today';
+    if (explicit && !isDateKey(raw)) {
+        return { error: "Invalid date. Use YYYY-MM-DD" };
+    }
+
+    const logDate = explicit ? raw as string : todayKey;
+    if (logDate > todayKey) {
+        return { error: "That day is in the future" };
+    }
+    return logDate;
 };
 
 const findHabit = async (spaceId: number, habitId: number) => {
@@ -147,14 +161,6 @@ export const checkIn = async (req: Request, res: Response) => {
             });
         }
 
-        const membership = await findMembership(userId, spaceId);
-        if (!membership) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
-            });
-        }
-
         const habit = await findHabit(spaceId, habitId);
         if (!habit) {
             return res.status(404).json({
@@ -175,7 +181,19 @@ export const checkIn = async (req: Request, res: Response) => {
         const note = hasNote ? (req.body.note.trim().slice(0, 500) || null) : null;
 
         const timeZone = await getUserTimeZone(userId);
-        const { key } = dayRange(new Date(), timeZone);
+        const { key: todayKey } = dayRange(new Date(), timeZone);
+
+        // Without a date this logs today; with one, it backfills a missed day.
+        const logDate = resolveLogDate(req.body?.date, todayKey);
+        if (typeof logDate !== 'string') {
+            return res.status(400).json({ success: false, message: logDate.error });
+        }
+        if (logDate < toDateKey(habit.createdAt, timeZone)) {
+            return res.status(400).json({
+                success: false,
+                message: "That day is before this habit existed"
+            });
+        }
 
         // The unique index on (habit, user, log_date) makes this the one place
         // that decides a completion for the day, so a double click is a no-op
@@ -183,7 +201,7 @@ export const checkIn = async (req: Request, res: Response) => {
         await db.insert(habitLogs).values({
             habitId,
             userId,
-            logDate: key,
+            logDate,
             completedAt: new Date(),
             note,
             isActive: true,
@@ -201,12 +219,13 @@ export const checkIn = async (req: Request, res: Response) => {
         return res.status(201).json({
             success: true,
             data: {
-                completedToday: true,
+                // A backfilled day must not report today as done.
+                completedToday: stats.get(habitId)?.completedToday ?? false,
                 dueToday: stats.get(habitId)?.dueToday ?? false,
                 streak: stats.get(habitId)?.streak ?? 1,
                 lastCompletedAt: stats.get(habitId)?.lastCompletedAt ?? new Date(),
             },
-            message: "Habit completed"
+            message: logDate === todayKey ? "Habit completed" : "Day marked done"
         });
     } catch (error) {
         console.error('Check in error:', error);
@@ -230,14 +249,6 @@ export const undoCheckIn = async (req: Request, res: Response) => {
             });
         }
 
-        const membership = await findMembership(userId, spaceId);
-        if (!membership) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
-            });
-        }
-
         const habit = await findHabit(spaceId, habitId);
         if (!habit) {
             return res.status(404).json({
@@ -254,13 +265,18 @@ export const undoCheckIn = async (req: Request, res: Response) => {
         }
 
         const timeZone = await getUserTimeZone(userId);
-        const { key } = dayRange(new Date(), timeZone);
+        const { key: todayKey } = dayRange(new Date(), timeZone);
+
+        const logDate = resolveLogDate(req.params.date, todayKey);
+        if (typeof logDate !== 'string') {
+            return res.status(400).json({ success: false, message: logDate.error });
+        }
 
         const [existing] = await db.select().from(habitLogs).where(
             and(
                 eq(habitLogs.habitId, habitId),
                 eq(habitLogs.userId, userId),
-                eq(habitLogs.logDate, key),
+                eq(habitLogs.logDate, logDate),
                 eq(habitLogs.isActive, true)
             )
         );
@@ -268,7 +284,7 @@ export const undoCheckIn = async (req: Request, res: Response) => {
         if (!existing) {
             return res.status(404).json({
                 success: false,
-                message: "No completion logged today"
+                message: logDate === todayKey ? "No completion logged today" : "No completion logged for that day"
             });
         }
 
@@ -281,7 +297,8 @@ export const undoCheckIn = async (req: Request, res: Response) => {
         return res.json({
             success: true,
             data: {
-                completedToday: false,
+                // Undoing a backfilled day leaves today's completion alone.
+                completedToday: stats.get(habitId)?.completedToday ?? false,
                 dueToday: stats.get(habitId)?.dueToday ?? false,
                 streak: stats.get(habitId)?.streak ?? 0,
                 lastCompletedAt: stats.get(habitId)?.lastCompletedAt ?? null,
@@ -307,14 +324,6 @@ export const getHabitLogs = async (req: Request, res: Response) => {
             return res.status(400).json({
                 success: false,
                 message: "Invalid space or habit id"
-            });
-        }
-
-        const membership = await findMembership(userId, spaceId);
-        if (!membership) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
             });
         }
 
@@ -365,10 +374,17 @@ export const getHabitLogs = async (req: Request, res: Response) => {
         const stats = await getHabitStats(userId, [habit], timeZone);
         const stat = stats.get(habitId);
 
+        // A day logged after the fact carries today's clock time, which would
+        // read as if it happened then. Say plainly that it was backfilled.
+        const withBackfillFlag = logs.map(log => ({
+            ...log,
+            backfilled: toDateKey(log.completedAt, timeZone) !== log.logDate,
+        }));
+
         return res.json({
             success: true,
             data: {
-                logs,
+                logs: withBackfillFlag,
                 completedToday: stat?.completedToday ?? false,
                 dueToday: stat?.dueToday ?? false,
                 streak: stat?.streak ?? 0,

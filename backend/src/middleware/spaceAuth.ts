@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
-import { userSpaces } from "../db/schema";
+import { spaces, userSpaces } from "../db/schema";
 
 declare global {
     namespace Express {
@@ -37,6 +37,20 @@ export const requireSpaceMember = async (req: Request, res: Response, next: Next
         );
 
         if (!membership) {
+            // Deleting a space also deactivates its memberships, so a former
+            // member would otherwise get 403 for a space that no longer exists.
+            // Deleted spaces answer 404 before any controller runs.
+            const [space] = await db.select({ isActive: spaces.isActive })
+                .from(spaces)
+                .where(eq(spaces.id, spaceId));
+
+            if (!space || !space.isActive) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Space not found"
+                });
+            }
+
             return res.status(403).json({
                 success: false,
                 message: "You are not a member of this space"

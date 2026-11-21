@@ -55,6 +55,8 @@ export interface HabitLog {
     logDate: string;
     completedAt: string;
     note: string | null;
+    // Logged for an earlier day than the one it was recorded on.
+    backfilled?: boolean;
 }
 
 export interface HabitHistory {
@@ -107,15 +109,20 @@ export const habitService = {
             `/spaces/${spaceId}/habits/${habitId}/logs`
         ),
 
-    // An empty string is meaningful: it clears the note on today's check-in.
-    complete: (spaceId: number, habitId: number, note?: string) =>
+    // An empty note is meaningful: it clears the note on that day's check-in.
+    // `date` (YYYY-MM-DD) backfills a past day instead of logging today.
+    complete: (
+        spaceId: number,
+        habitId: number,
+        { note, date }: { note?: string; date?: string } = {}
+    ) =>
         API.post<{success: boolean; data: CompletionResult; message: string}>(
             `/spaces/${spaceId}/habits/${habitId}/logs`,
-            note === undefined ? {} : { note }
+            { ...(note === undefined ? {} : { note }), ...(date ? { date } : {}) }
         ),
 
-    undoCompletion: (spaceId: number, habitId: number) =>
+    undoCompletion: (spaceId: number, habitId: number, date?: string) =>
         API.delete<{success: boolean; data: CompletionResult; message: string}>(
-            `/spaces/${spaceId}/habits/${habitId}/logs/today`
+            `/spaces/${spaceId}/habits/${habitId}/logs/${date ?? 'today'}`
         ),
 };

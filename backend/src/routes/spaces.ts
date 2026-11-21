@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createSpace, deleteSpace, getSpaceById, getSpaceSummary, getSpaces, joinSpace, previewSpaceBySlug, updateSpace } from "../controllers/spaceController";
 import { authMiddleware, optionalAuth } from "../middleware/auth";
+import { requireSpaceAdmin, requireSpaceMember } from "../middleware/spaceAuth";
 import memberRoutes from "./members";
 
 const router = Router();
@@ -18,8 +19,8 @@ router.get('/', getSpaces);
 
 router.use('/:spaceId/members', memberRoutes);
 
-router.get('/:id', getSpaceById);
-router.put('/:id', updateSpace);
-router.delete('/:id', deleteSpace);
+router.get('/:id', requireSpaceMember, getSpaceById);
+router.put('/:id', requireSpaceMember, requireSpaceAdmin, updateSpace);
+router.delete('/:id', requireSpaceMember, requireSpaceAdmin, deleteSpace);
 
 export default router;
