@@ -8,7 +8,6 @@ import spaceRoutes from './routes/spaces'
 import habitRoutes from './routes/habits'
 
 const app = express();
-const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({

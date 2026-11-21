@@ -1,4 +1,4 @@
-import e, { Request, Response } from "express";
+import { Request, Response } from "express";
 import { db } from "../db";
 import { habitLogs, habits, spaces, userSpaces } from "../db/schema";
 import { and, count, eq, inArray, or } from "drizzle-orm";
@@ -104,26 +104,12 @@ export const getSpaces = async (req: Request, res: Response) => {
 export const getSpaceById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
-        const userId = req.userId!;
 
-        const membership = await db.select().from(userSpaces).where(
-            and(
-                eq(userSpaces.userId, userId),
-                eq(userSpaces.spaceId, parseInt(id)),
-                eq(userSpaces.isActive, true),
-            )
-        )
+        const [space] = await db.select().from(spaces).where(
+            and(eq(spaces.id, parseInt(id, 10)), eq(spaces.isActive, true))
+        );
 
-        if(membership.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not member of this space"
-            })
-        }
-
-        const space = await db.select().from(spaces).where(eq(spaces.id, parseInt(id)));
-
-        if(!space) {
+        if (!space) {
             return res.status(404).json({
                 success: false,
                 message: "Space not found"
@@ -133,8 +119,8 @@ export const getSpaceById = async (req: Request, res: Response) => {
         return res.status(200).json({
             success: true,
             data: {
-                ...space[0],
-                role: membership[0].role
+                ...space,
+                role: req.spaceRole
             }
         });
 
@@ -151,33 +137,18 @@ export const updateSpace = async (req: Request, res: Response) => {
     try {
         const { id } = req.params as {id: string};
         const { name, description } = req.body;
-        const userId = req.userId!;
 
-        const membership = await db.select().from(userSpaces).where(
-            and(
-                eq(userSpaces.userId, userId),
-                eq(userSpaces.spaceId, parseInt(id)),
-                eq(userSpaces.isActive, true),
-            )
-        )
-
-        if(membership.length === 0) {
-            return res.status(403).json({
+        if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+            return res.status(400).json({
                 success: false,
-                message: "You are not member of this space"
+                message: "space name cannot be empty"
             })
         }
 
-        if(membership[0].role !== 'admin') {
-            return res.status(403).json({
-                success: false,
-                message: "Only admin can update space details"
-            })
-        }
-
+        // `!== undefined`, not truthiness, so an empty string clears the field.
         const updateData: any = {};
-        if(name) updateData.name = name.trim();
-        if(description) updateData.description = description?.trim() || null;
+        if (name !== undefined) updateData.name = name.trim();
+        if (description !== undefined) updateData.description = description?.trim() || null;
         updateData.updatedAt = new Date();
 
         const [updateSpace] = await db.update(spaces).set(updateData).where(
@@ -193,7 +164,7 @@ export const updateSpace = async (req: Request, res: Response) => {
 
         return res.json({
             success: true,
-            data: { ...updateSpace, role: membership[0].role },
+            data: { ...updateSpace, role: req.spaceRole },
             message: "Space updated successfully"
         })
 
@@ -209,42 +180,27 @@ export const updateSpace = async (req: Request, res: Response) => {
 export const deleteSpace = async (req: Request, res: Response) => {
     try {
         const { id } = req.params as {id: string};
-        const userId = req.userId!;
 
-        const membership = await db
-            .select()
-            .from(userSpaces)
-            .where(
-                and(
-                    eq(userSpaces.userId, userId),
-                    eq(userSpaces.spaceId, parseInt(id)),
-                    eq(userSpaces.isActive, true)
-                )
-            );
+        const spaceId = parseInt(id, 10);
 
-        if (membership.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
-            });
-        }
+        // A deleted space takes its habits and memberships with it, all or
+        // nothing, so no habit is left pointing at a space nobody can open.
+        await db.transaction(async (tx) => {
+            await tx.update(spaces).set({
+                isActive: false,
+                updatedAt: new Date()
+            }).where(eq(spaces.id, spaceId));
 
-        if (membership[0].role !== 'admin') {
-            return res.status(403).json({
-                success: false,
-                message: "Only admins can delete spaces"
-            });
-        }
+            await tx
+                .update(userSpaces)
+                .set({ isActive: false })
+                .where(eq(userSpaces.spaceId, spaceId));
 
-        const [deleteSpace] = await db.update(spaces).set({
-            isActive: false,
-            updatedAt: new Date()
-        }).where(eq(spaces.id, parseInt(id))).returning();
-
-        await db
-            .update(userSpaces)
-            .set({isActive: false})
-            .where(eq(userSpaces.spaceId, parseInt(id)));
+            await tx
+                .update(habits)
+                .set({ isActive: false, updatedAt: new Date() })
+                .where(eq(habits.spaceId, spaceId));
+        });
 
         return res.json({
             success: true,

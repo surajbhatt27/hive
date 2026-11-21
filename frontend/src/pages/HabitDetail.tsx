@@ -11,6 +11,9 @@ const dateKey = (date: Date): string =>
 
 const logDateKey = (value: HabitLog["logDate"]): string => String(value).slice(0, 10);
 
+const prettyDate = (key: string): string =>
+    new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
 export default function HabitDetail() {
     const { spaceId: spaceIdParam, habitId: habitIdParam } = useParams<{ spaceId: string; habitId: string }>();
     const spaceId = Number(spaceIdParam);
@@ -24,6 +27,8 @@ export default function HabitDetail() {
     const [busy, setBusy] = useState(false);
     const [note, setNote] = useState("");
     const [noteStatus, setNoteStatus] = useState("");
+    const [backfillDate, setBackfillDate] = useState("");
+    const [backfillStatus, setBackfillStatus] = useState("");
 
     const load = useCallback(async (showSpinner = true) => {
         if (!spaceId || !habitId) {
@@ -52,6 +57,8 @@ export default function HabitDetail() {
     }, [load]);
 
     const todayKey = dateKey(new Date());
+    // Backfilling can't go further back than the habit itself exists.
+    const habitCreatedKey = habit ? dateKey(new Date(habit.createdAt)) : todayKey;
 
     // The history endpoint returns the last 90 days; for space habits it also
     // includes other members, so the heatmap and note box only look at my rows.
@@ -90,7 +97,7 @@ export default function HabitDetail() {
                 await habitService.undoCompletion(spaceId, habitId);
             } else {
                 // Keep a note the user typed before clicking "Mark done today".
-                await habitService.complete(spaceId, habitId, note.trim());
+                await habitService.complete(spaceId, habitId, { note: note.trim() });
             }
             await load(false);
         } catch (err: any) {
@@ -108,11 +115,35 @@ export default function HabitDetail() {
         const trimmed = note.trim();
         try {
             // Notes are stored on today's check-in, so saving one logs today.
-            await habitService.complete(spaceId, habitId, trimmed);
+            await habitService.complete(spaceId, habitId, { note: trimmed });
             setNoteStatus(trimmed ? "Note saved." : "Note cleared.");
             await load(false);
         } catch (err: any) {
             setError(err.response?.data?.message || "Failed to save your note");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleBackfill = async (action: "mark" | "remove") => {
+        if (!habit || !backfillDate) return;
+        setBusy(true);
+        setError("");
+        setBackfillStatus("");
+        try {
+            if (action === "mark") {
+                await habitService.complete(spaceId, habitId, { date: backfillDate });
+            } else {
+                await habitService.undoCompletion(spaceId, habitId, backfillDate);
+            }
+            setBackfillStatus(
+                action === "mark"
+                    ? `${prettyDate(backfillDate)} marked done.`
+                    : `${prettyDate(backfillDate)} cleared.`
+            );
+            await load(false);
+        } catch (err: any) {
+            setError(err.response?.data?.message || "Failed to update that day");
         } finally {
             setBusy(false);
         }
@@ -207,10 +238,16 @@ export default function HabitDetail() {
                     {days.map(day => {
                         const log = completedDays.get(day.key);
                         return (
-                            <div
+                            <button
+                                type="button"
                                 key={day.key}
+                                onClick={() => {
+                                    setBackfillDate(day.key);
+                                    setBackfillStatus("");
+                                }}
                                 title={`${day.key}${log?.note ? ` — ${log.note}` : ''}${log ? '' : ' — not completed'}`}
-                                className={`h-4 w-4 rounded-[3px] ${log ? 'bg-moss' : 'bg-line'}`}
+                                aria-label={`Pick ${day.key}`}
+                                className={`h-4 w-4 border-0 p-0 rounded-[3px] ${log ? 'bg-moss' : 'bg-line'} ${backfillDate === day.key ? 'ring-2 ring-moss ring-offset-1' : ''}`}
                             />
                         );
                     })}
@@ -222,6 +259,48 @@ export default function HabitDetail() {
                     <span className="flex items-center gap-1.5">
                         <span className="h-3 w-3 rounded-[3px] bg-moss" /> done
                     </span>
+                    <span className="text-faint">tap a day to pick it</span>
+                </div>
+
+                <div className="card max-w-lg space-y-3 p-4">
+                    <div>
+                        <h3 className="mb-0.5">Missed a day?</h3>
+                        <p className="text-sm">
+                            Backfill a day you forgot to log. Tap a square above, or pick a date.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-2">
+                        <div className="min-w-0 flex-1">
+                            <label htmlFor="backfill-date">Day</label>
+                            <input
+                                id="backfill-date"
+                                type="date"
+                                value={backfillDate}
+                                min={habitCreatedKey}
+                                max={todayKey}
+                                onChange={event => {
+                                    setBackfillDate(event.target.value);
+                                    setBackfillStatus("");
+                                }}
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => handleBackfill("mark")}
+                            disabled={busy || !backfillDate || completedDays.has(backfillDate)}
+                        >
+                            Mark done
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleBackfill("remove")}
+                            disabled={busy || !backfillDate || !completedDays.has(backfillDate)}
+                        >
+                            Remove
+                        </button>
+                    </div>
+                    {backfillStatus && <p className="text-sm text-moss">{backfillStatus}</p>}
                 </div>
             </section>
 
@@ -274,9 +353,13 @@ export default function HabitDetail() {
                                             <span className="text-faint"> · {log.userName}</span>
                                         )}
                                     </span>
-                                    <span className="text-xs text-faint tabular-nums">
-                                        {new Date(log.completedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+                                    {log.backfilled ? (
+                                        <span className="tag">backfilled</span>
+                                    ) : (
+                                        <span className="text-xs text-faint tabular-nums">
+                                            {new Date(log.completedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
                                 </div>
                                 {log.note && <p className="mt-0.5 text-sm text-muted">{log.note}</p>}
                             </li>

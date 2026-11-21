@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { habits, userSpaces } from "../db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { habits } from "../db/schema";
+import { and, eq, or } from "drizzle-orm";
 import { getHabitStats } from "./logController";
 import { isFrequency, parseScheduleInput } from "../utils/schedule";
 
@@ -12,78 +12,24 @@ export const getHabits = async (req: Request, res: Response) => {
         const { type } = req.query;
         const spaceIdString = Array.isArray(spaceId) ? spaceId[0] : spaceId;
 
-        const membership = await db.select().from(userSpaces).where(and
-            (
-                eq(userSpaces.userId, userId),
-                eq(userSpaces.spaceId, parseInt(spaceIdString, 10)),
-                eq(userSpaces.isActive, true)
-            )
-        )
-
-        if(membership.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: 'You are not a member of this space'
-            })
-        }
-
-        const conditions = [
-            eq(habits.spaceId, parseInt(spaceIdString, 10)),
-            eq(habits.isActive, true)
-        ]
-
-        if(type === 'space') {
-            conditions.push(eq(habits.type, 'space'))
-        } else if(type === 'personal') {
-            conditions.push(
-                eq(habits.type, 'personal'),
-                eq(habits.createdBy, userId)
-            )
-        }else {
-            conditions.push(
-                inArray(habits.type, ['space', 'personal']),
-                eq(habits.createdBy, userId)
-            )
-        }
-
-        let habitList;
-
-        if(type === 'space') {
-            habitList = await db.select().from(habits).where(
-                and(
-                    eq(habits.spaceId, parseInt(spaceIdString)),
+        // Space habits are shared with the whole space; personal habits belong
+        // to the person who made them.
+        const visible = type === 'space'
+            ? eq(habits.type, 'space')
+            : type === 'personal'
+                ? and(eq(habits.type, 'personal'), eq(habits.createdBy, userId))
+                : or(
                     eq(habits.type, 'space'),
-                    eq(habits.isActive, true)
-                )
-            )
-        }else if (type === 'personal') {
-            habitList = await db.select().from(habits).where(
-                and(
-                    eq(habits.spaceId, parseInt(spaceIdString)),
-                    eq(habits.type, 'personal'),
-                    eq(habits.createdBy, userId),
-                    eq(habits.isActive, true)
-                )
-            );
-        } else {
-            const spaceHabits = await db.select().from(habits).where(
-                and(
-                    eq(habits.spaceId, parseInt(spaceIdString)),
-                    eq(habits.type, 'space'),
-                    eq(habits.isActive, true)
-                )
-            );
+                    and(eq(habits.type, 'personal'), eq(habits.createdBy, userId))
+                );
 
-            const personalHabits = await db.select().from(habits).where(
-                and(
-                    eq(habits.spaceId, parseInt(spaceIdString)),
-                    eq(habits.type, 'personal'),
-                    eq(habits.createdBy, userId),
-                    eq(habits.isActive, true)
-                )
-            );
-            habitList = [...spaceHabits, ...personalHabits];
-        }
+        const habitList = await db.select().from(habits).where(
+            and(
+                eq(habits.spaceId, parseInt(spaceIdString, 10)),
+                eq(habits.isActive, true),
+                visible
+            )
+        );
         const stats = await getHabitStats(userId, habitList);
 
         return res.json({
@@ -111,21 +57,6 @@ export const getHabitById = async (req: Request, res: Response) => {
         const userId = req.userId!;
         const spaceIdString = Array.isArray(spaceId) ? spaceId[0] : spaceId;
         const habitIdString = Array.isArray(habitId) ? habitId[0] : habitId;
-
-        const membership = await db.select().from(userSpaces).where(
-            and(
-                eq(userSpaces.userId, userId),
-                eq(userSpaces.spaceId, parseInt(spaceIdString)),
-                eq(userSpaces.isActive, true)
-            )
-        );
-
-        if (membership.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
-            });
-        }
 
         const habit = await db.select().from(habits).where(
             and(
@@ -184,32 +115,14 @@ export const createHabit = async (req: Request, res: Response) => {
             });
         }
 
-        const membership = await db.select().from(userSpaces).where(
-            and(
-                eq(userSpaces.userId, userId),
-                eq(userSpaces.spaceId, parseInt(spaceIdString)),
-                eq(userSpaces.isActive, true)
-            )
-        );
+        // Anything that is not explicitly a space habit is a personal one.
+        const habitType = type === 'space' ? 'space' : 'personal';
 
-        if (membership.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
-            });
-        }
-
-        let habitType = type || 'personal';
-
-        if (habitType === 'space' && membership[0].role !== 'admin') {
+        if (habitType === 'space' && req.spaceRole !== 'admin') {
             return res.status(403).json({
                 success: false,
                 message: "Only admins can create space habits"
             });
-        }
-
-        if (!type) {
-            habitType = 'personal';
         }
 
         const habitFrequency = frequency || 'daily';
@@ -271,21 +184,6 @@ export const updateHabit = async (req: Request, res: Response) => {
         const userId = req.userId!;
         const { name, description, frequency, weekdays, monthDays, intervalDays } = req.body;
 
-        const membership = await db.select().from(userSpaces).where(
-            and(
-                eq(userSpaces.userId, userId),
-                eq(userSpaces.spaceId, parseInt(spaceIdString)),
-                eq(userSpaces.isActive, true)
-            )
-        );
-
-        if (membership.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
-            });
-        }
-
         const habit = await db.select().from(habits).where(
             and(
                 eq(habits.id, parseInt(habitIdString)),
@@ -301,7 +199,7 @@ export const updateHabit = async (req: Request, res: Response) => {
             });
         }
 
-        const isAdmin = membership[0].role === 'admin';
+        const isAdmin = req.spaceRole === 'admin';
         const isCreator = habit[0].createdBy === userId;
 
         if (habit[0].type === 'space' && !isAdmin) {
@@ -380,21 +278,6 @@ export const deleteHabit = async (req: Request, res: Response) => {
         const habitIdString = Array.isArray(habitId) ? habitId[0] : habitId;
         const userId = req.userId!;
 
-        const membership = await db.select().from(userSpaces).where(
-            and(
-                eq(userSpaces.userId, userId),
-                eq(userSpaces.spaceId, parseInt(spaceIdString)),
-                eq(userSpaces.isActive, true)
-            )
-        );
-
-        if (membership.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: "You are not a member of this space"
-            });
-        }
-
         const habit = await db.select().from(habits).where(
             and(
                 eq(habits.id, parseInt(habitIdString)),
@@ -410,7 +293,7 @@ export const deleteHabit = async (req: Request, res: Response) => {
             });
         }
 
-        const isAdmin = membership[0].role === 'admin';
+        const isAdmin = req.spaceRole === 'admin';
         const isCreator = habit[0].createdBy === userId;
 
         if (habit[0].type === 'space' && !isAdmin) {
